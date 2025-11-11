@@ -1,0 +1,146 @@
+# OpenEMS Development Container with VNC Desktop
+# Force amd64/x86_64 architecture for better compatibility
+# (OpenEMS build tools are more mature on x86_64)
+FROM --platform=linux/amd64 ubuntu:22.04
+
+# Prevent interactive prompts during build
+ENV DEBIAN_FRONTEND=noninteractive
+ENV TZ=UTC
+
+# Fix potential GPG key issues
+RUN apt-get clean && \
+    rm -rf /var/lib/apt/lists/* && \
+    mkdir -p /var/lib/apt/lists/partial
+
+# Set up VNC environment variables
+ENV DISPLAY=:1
+ENV VNC_PORT=5901
+ENV NOVNC_PORT=6080
+ENV VNC_RESOLUTION=1280x720
+
+# Install base dependencies
+RUN apt-get update && apt-get install -y \
+    # Build essentials
+    build-essential \
+    cmake \
+    git \
+    wget \
+    curl \
+    pkg-config \
+    autoconf \
+    automake \
+    libtool \
+    # Python and pip
+    python3 \
+    python3-pip \
+    python3-dev \
+    python3-tk \
+    python3-pil.imagetk \
+    # OpenEMS dependencies
+    libtinyxml-dev \
+    libhdf5-dev \
+    libhdf5-serial-dev \
+    libvtk9-dev \
+    libboost-all-dev \
+    libcgal-dev \
+    libcgal-qt5-dev \
+    libfftw3-dev \
+    libfparser-dev \
+    qtbase5-dev \
+    libqt5opengl5-dev \
+    qttools5-dev \
+    libvtk9-qt-dev \
+    # VNC and desktop environment
+    tigervnc-standalone-server \
+    tigervnc-common \
+    xfce4 \
+    xfce4-terminal \
+    xterm \
+    dbus-x11 \
+    # noVNC for browser access
+    novnc \
+    websockify \
+    net-tools \
+    # Additional utilities
+    vim \
+    nano \
+    htop \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set up VNC password (default: openems)
+RUN mkdir -p ~/.vnc && \
+    echo "openems" | vncpasswd -f > ~/.vnc/passwd && \
+    chmod 600 ~/.vnc/passwd
+
+# Clone and build CSXCAD (OpenEMS geometry library)
+WORKDIR /tmp
+RUN git clone https://github.com/thliebig/CSXCAD.git
+WORKDIR /tmp/CSXCAD
+RUN mkdir build
+WORKDIR /tmp/CSXCAD/build
+RUN cmake .. \
+    -DCMAKE_INSTALL_PREFIX=/usr/local \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DBUILD_TESTING=OFF
+RUN make -j$(nproc) VERBOSE=1
+RUN make install
+RUN ldconfig
+
+# Clone and build OpenEMS
+WORKDIR /tmp
+RUN git clone https://github.com/thliebig/openEMS.git
+WORKDIR /tmp/openEMS
+RUN mkdir build
+WORKDIR /tmp/openEMS/build
+RUN cmake .. \
+    -DCMAKE_INSTALL_PREFIX=/usr/local \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DBUILD_TESTING=OFF
+RUN make -j$(nproc) VERBOSE=1
+RUN make install
+RUN ldconfig
+
+# Install Python bindings for CSXCAD (use already cloned repo)
+WORKDIR /tmp/CSXCAD/python
+ENV CSXCAD_INSTALL_PATH=/usr/local
+RUN pip3 install .
+
+# Install Cython and scientific Python packages
+RUN pip3 install --no-cache-dir \
+    numpy \
+    matplotlib \
+    Cython
+
+# Install Python bindings for OpenEMS (use already cloned repo)
+WORKDIR /tmp/openEMS/python
+ENV OPENEMS_INSTALL_PATH=/usr/local
+RUN pip3 install .
+
+# Clean up source directories
+WORKDIR /tmp
+RUN rm -rf /tmp/CSXCAD /tmp/openEMS
+
+# Install additional Python packages
+RUN pip3 install --no-cache-dir \
+    h5py \
+    scipy \
+    pandas \
+    scikit-rf
+
+# Note: ParaView is skipped due to package conflicts with python3-vtk9
+# For visualization, use matplotlib (included) or install ParaView separately:
+# apt-get install --no-install-recommends paraview
+# Or use Python-based visualization with vtk
+
+# Set up workspace
+WORKDIR /workspace
+
+# Create directories for student work
+RUN mkdir -p /workspace/simulations /workspace/pcb-designs /workspace/examples
+
+# Expose VNC and noVNC ports
+EXPOSE 5901 6080
+
+# Default command (will be overridden by devcontainer.json)
+CMD ["/bin/bash"]

@@ -1,0 +1,51 @@
+# Simulation outputs (anywhere in repo)
+**/*.h5
+**/*.vtr
+**/*.vtk
+*.xml
+**/*.csv
+**/tmp/
+
+# Simulation directories
+*_sim/
+*_simulation/
+plane_wave_sim/
+microstrip_vtk_sim/
+microstrip_simulation/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb_checkpoints
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# VNC
+.vnc/*.log
+.vnc/*.pid

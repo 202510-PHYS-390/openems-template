@@ -1,0 +1,77 @@
+{
+  "name": "OpenEMS PCB Simulation Environment",
+  "image": "openems-dev"
+
+  // Container configuration
+  "runArgs": [
+    "--init",
+    "--privileged"
+  ],
+
+  // Workspace configuration
+  "workspaceFolder": "/workspace",
+  "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind",
+
+  // Port forwarding for VNC and noVNC
+  "forwardPorts": [
+    5901,  // VNC
+    6080   // noVNC (web browser)
+  ],
+
+  "portsAttributes": {
+    "6080": {
+      "label": "noVNC Desktop",
+      "onAutoForward": "notify"
+    },
+    "5901": {
+      "label": "VNC Server",
+      "onAutoForward": "silent"
+    }
+  },
+
+  // VS Code customizations
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-python.python",
+        "ms-python.vscode-pylance",
+        "ms-toolsai.jupyter"
+      ],
+      "settings": {
+        "python.defaultInterpreterPath": "/usr/bin/python3",
+        "python.linting.enabled": true,
+        "python.linting.pylintEnabled": true,
+        "python.formatting.provider": "autopep8",
+        "terminal.integrated.defaultProfile.linux": "bash",
+        "files.associations": {
+          "*.m": "octave"
+        }
+      }
+    }
+  },
+
+  // Post-create command to set up environment
+  "postCreateCommand": "bash .devcontainer/post-create.sh",
+
+  // Post-start command to launch VNC
+  "postStartCommand": "bash .devcontainer/start-vnc.sh",
+
+  // Features to add
+  "features": {
+    "ghcr.io/devcontainers/features/common-utils:2": {
+      "installZsh": true,
+      "installOhMyZsh": false,
+      "upgradePackages": true
+    },
+    "ghcr.io/devcontainers/features/git:1": {
+      "version": "latest"
+    }
+  },
+
+  // User configuration
+  "remoteUser": "root",
+  "containerEnv": {
+    "DISPLAY": ":1",
+    "VNC_RESOLUTION": "1280x720"
+  }
+}

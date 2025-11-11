@@ -1,0 +1,134 @@
+#!/bin/bash
+# Post-create script for OpenEMS development container
+# Runs once after container is created
+
+set -e
+
+echo "========================================="
+echo "OpenEMS Development Container Setup"
+echo "========================================="
+
+# Ensure workspace directories exist
+echo "Creating workspace directories..."
+mkdir -p /workspace/simulations
+mkdir -p /workspace/pcb-designs
+mkdir -p /workspace/examples
+
+# Set up Python environment
+echo "Setting up Python environment..."
+pip3 install --upgrade pip
+
+# Verify OpenEMS installation
+echo "Verifying OpenEMS installation..."
+python3 -c "import CSXCAD; print('CSXCAD version:', CSXCAD.__version__)" || echo "Warning: CSXCAD import failed"
+python3 -c "import openEMS; print('OpenEMS imported successfully')" || echo "Warning: openEMS import failed"
+
+# Create a simple verification script
+cat > /workspace/test_openems.py << 'EOF'
+#!/usr/bin/env python3
+"""Quick test to verify OpenEMS installation"""
+
+import sys
+
+def test_imports():
+    """Test that all required packages can be imported"""
+    tests = []
+
+    # Test CSXCAD
+    try:
+        import CSXCAD
+        tests.append(("CSXCAD", True, f"version {CSXCAD.__version__}"))
+    except Exception as e:
+        tests.append(("CSXCAD", False, str(e)))
+
+    # Test openEMS
+    try:
+        import openEMS
+        tests.append(("openEMS", True, "imported successfully"))
+    except Exception as e:
+        tests.append(("openEMS", False, str(e)))
+
+    # Test numpy
+    try:
+        import numpy as np
+        tests.append(("numpy", True, f"version {np.__version__}"))
+    except Exception as e:
+        tests.append(("numpy", False, str(e)))
+
+    # Test matplotlib
+    try:
+        import matplotlib
+        tests.append(("matplotlib", True, f"version {matplotlib.__version__}"))
+    except Exception as e:
+        tests.append(("matplotlib", False, str(e)))
+
+    # Test h5py
+    try:
+        import h5py
+        tests.append(("h5py", True, f"version {h5py.__version__}"))
+    except Exception as e:
+        tests.append(("h5py", False, str(e)))
+
+    # Print results
+    print("\nOpenEMS Environment Verification")
+    print("=" * 50)
+    all_passed = True
+    for name, passed, info in tests:
+        status = "✓" if passed else "✗"
+        print(f"{status} {name:15s} {info}")
+        if not passed:
+            all_passed = False
+
+    print("=" * 50)
+    if all_passed:
+        print("All tests passed! Environment is ready.")
+        return 0
+    else:
+        print("Some tests failed. Check errors above.")
+        return 1
+
+if __name__ == "__main__":
+    sys.exit(test_imports())
+EOF
+
+chmod +x /workspace/test_openems.py
+
+# Set up VNC directory
+echo "Setting up VNC configuration..."
+mkdir -p ~/.vnc
+
+# Create xstartup for VNC (matches setup_gui.sh)
+cat > ~/.vnc/xstartup << 'EOF'
+#!/bin/bash
+unset SESSION_MANAGER
+unset DBUS_SESSION_BUS_ADDRESS
+
+# Start dbus with xfce4-session
+dbus-launch --exit-with-session xfce4-session &
+
+# Keep script alive
+wait
+EOF
+
+chmod +x ~/.vnc/xstartup
+
+# Setup environment variables for matplotlib GUI
+echo "" >> ~/.bashrc
+echo "# Matplotlib GUI support" >> ~/.bashrc
+echo "export DISPLAY=:1" >> ~/.bashrc
+echo "export MPLBACKEND=TkAgg" >> ~/.bashrc
+
+echo "========================================="
+echo "Setup complete!"
+echo ""
+echo "Next steps:"
+echo "1. Test installation: python3 test_openems.py"
+echo "2. Start GUI: bash setup_gui.sh"
+echo "3. Access desktop: http://localhost:6080/vnc.html"
+echo "4. Password: openems"
+echo ""
+echo "Documentation:"
+echo "  README.md - Quick start guide"
+echo "  Tutorials/README.md - Tutorial examples"
+echo "  examples/README.md - Custom examples"
+echo "========================================="
