@@ -1,6 +1,10 @@
-# OpenEMS Development Container with VNC Desktop
+# OpenEMS + ElmerFEM Development Container with VNC Desktop
 # Force amd64/x86_64 architecture for better compatibility
 # (OpenEMS build tools are more mature on x86_64)
+#
+# Includes:
+#   - OpenEMS: FDTD electromagnetic simulator (high-frequency)
+#   - ElmerFEM: Finite element multiphysics (DC/low-frequency, thermal, structural)
 FROM --platform=linux/amd64 ubuntu:22.04
 
 # Prevent interactive prompts during build
@@ -133,11 +137,73 @@ RUN pip3 install --no-cache-dir \
 # apt-get install --no-install-recommends paraview
 # Or use Python-based visualization with vtk
 
+# ========================================================================
+# ElmerFEM Installation
+# ========================================================================
+
+# Install ElmerFEM build dependencies
+RUN apt-get update && apt-get install -y \
+    # Build tools
+    gfortran \
+    # ElmerFEM dependencies
+    liblapack-dev \
+    libblas-dev \
+    libmumps-seq-dev \
+    libhypre-dev \
+    libparmetis-dev \
+    libmetis-dev \
+    # Mesh tools
+    gmsh \
+    # Qt for ElmerGUI (qtbase5-dev includes Qt5::Xml)
+    qtbase5-dev \
+    libqt5opengl5-dev \
+    libqt5svg5-dev \
+    qttools5-dev \
+    libqwt-qt5-dev \
+    # VTK for visualization (already installed for OpenEMS)
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+# Clone and build ElmerFEM from source
+WORKDIR /tmp
+RUN git clone https://github.com/ElmerCSC/elmerfem.git
+WORKDIR /tmp/elmerfem
+RUN mkdir build
+WORKDIR /tmp/elmerfem/build
+
+# Configure ElmerFEM with GUI support
+RUN cmake .. \
+    -DCMAKE_INSTALL_PREFIX=/usr/local \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DWITH_MPI=FALSE \
+    -DWITH_OpenMP=TRUE \
+    -DWITH_MUMPS=TRUE \
+    -DWITH_Hypre=TRUE \
+    -DWITH_ElmerGUI=TRUE \
+    -DWITH_ELMERGRID=TRUE \
+    -DWITH_MATC=TRUE
+
+# Build and install (this takes a while)
+RUN make -j$(nproc)
+RUN make install
+RUN ldconfig
+
+# Clean up ElmerFEM source
+WORKDIR /tmp
+RUN rm -rf /tmp/elmerfem
+
+# Install Python packages for ElmerFEM pre/post-processing
+RUN pip3 install --no-cache-dir \
+    gmsh \
+    meshio \
+    pygmsh \
+    pyvista
+
 # Set up workspace
 WORKDIR /workspace
 
 # Create directories for student work
-RUN mkdir -p /workspace/simulations /workspace/pcb-designs /workspace/examples
+RUN mkdir -p /workspace/simulations /workspace/pcb-designs /workspace/examples /workspace/elmerfem-examples
 
 # Expose VNC and noVNC ports
 EXPOSE 5901 6080

@@ -66,11 +66,12 @@ print("\nCreating geometry...")
 air = CSX.AddMaterial('air', epsilon=1.0)
 
 # Add dielectric slab
+# IMPORTANT: Use mesh coordinates (NOT SI units!)
 dielectric = CSX.AddMaterial('FR4', epsilon=slab_er)
 dielectric.AddBox(
     priority=0,
-    start=[0, 0, slab_start * unit],
-    stop=[box_width * unit, box_height * unit, (slab_start + slab_thickness) * unit]
+    start=[0, 0, slab_start],
+    stop=[box_width, box_height, slab_start + slab_thickness]
 )
 
 print(f"  Air region: {box_width} × {box_height} × {box_length} mm")
@@ -105,11 +106,12 @@ print("\nSetting up plane wave excitation...")
 excite_z = 5.0  # mm from start
 
 # Add excitation - E-field in x-direction
+# IMPORTANT: Use mesh coordinates (NOT SI units!)
 excitation = CSX.AddExcitation('plane_wave', exc_type=0, exc_val=[1, 0, 0])
 excitation.AddBox(
     priority=10,
-    start=[0, 0, excite_z * unit],
-    stop=[box_width * unit, box_height * unit, excite_z * unit]
+    start=[0, 0, excite_z],
+    stop=[box_width, box_height, excite_z]
 )
 
 print(f"  Plane wave at z={excite_z} mm")
@@ -123,8 +125,10 @@ print(f"  Propagation direction: +z")
 print("\nConfiguring VTK dumps for ParaView...")
 
 # Define dump region (entire simulation box)
+# IMPORTANT: Dump coordinates must match mesh coordinates (NOT SI units!)
+# Mesh is defined in mm (0 to box_width), so dump uses same coordinates
 dump_start = [0, 0, 0]
-dump_stop = [box_width * unit, box_height * unit, box_length * unit]
+dump_stop = [box_width, box_height, box_length]  # In mesh coordinates, NOT multiplied by unit!
 
 # VTK dumps happen every ~10 timesteps by default (hardcoded in OpenEMS)
 # With 10,000 max timesteps, we get ~1,000 files per field

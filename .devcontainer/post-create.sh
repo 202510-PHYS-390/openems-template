@@ -1,11 +1,11 @@
 #!/bin/bash
-# Post-create script for OpenEMS development container
+# Post-create script for OpenEMS + ElmerFEM development container
 # Runs once after container is created
 
 set -e
 
 echo "========================================="
-echo "OpenEMS Development Container Setup"
+echo "OpenEMS + ElmerFEM Container Setup"
 echo "========================================="
 
 # Ensure workspace directories exist
@@ -13,6 +13,7 @@ echo "Creating workspace directories..."
 mkdir -p /workspace/simulations
 mkdir -p /workspace/pcb-designs
 mkdir -p /workspace/examples
+mkdir -p /workspace/elmerfem-examples
 
 # Set up Python environment
 echo "Setting up Python environment..."
@@ -23,12 +24,19 @@ echo "Verifying OpenEMS installation..."
 python3 -c "import CSXCAD; print('CSXCAD version:', CSXCAD.__version__)" || echo "Warning: CSXCAD import failed"
 python3 -c "import openEMS; print('OpenEMS imported successfully')" || echo "Warning: openEMS import failed"
 
+# Verify ElmerFEM installation
+echo "Verifying ElmerFEM installation..."
+which ElmerSolver || echo "Warning: ElmerSolver not found"
+which ElmerGrid || echo "Warning: ElmerGrid not found"
+which ElmerGUI || echo "Warning: ElmerGUI not found"
+
 # Create a simple verification script
-cat > /workspace/test_openems.py << 'EOF'
+cat > /workspace/test_environment.py << 'EOF'
 #!/usr/bin/env python3
-"""Quick test to verify OpenEMS installation"""
+"""Quick test to verify OpenEMS + ElmerFEM installation"""
 
 import sys
+import subprocess
 
 def test_imports():
     """Test that all required packages can be imported"""
@@ -69,11 +77,46 @@ def test_imports():
     except Exception as e:
         tests.append(("h5py", False, str(e)))
 
+    # Test meshio (for ElmerFEM)
+    try:
+        import meshio
+        tests.append(("meshio", True, f"version {meshio.__version__}"))
+    except Exception as e:
+        tests.append(("meshio", False, str(e)))
+
+    # Test pyvista (for ElmerFEM)
+    try:
+        import pyvista
+        tests.append(("pyvista", True, f"version {pyvista.__version__}"))
+    except Exception as e:
+        tests.append(("pyvista", False, str(e)))
+
     # Print results
-    print("\nOpenEMS Environment Verification")
+    print("\nPython Environment Verification")
     print("=" * 50)
     all_passed = True
     for name, passed, info in tests:
+        status = "✓" if passed else "✗"
+        print(f"{status} {name:15s} {info}")
+        if not passed:
+            all_passed = False
+
+    # Test ElmerFEM executables
+    print("\nElmerFEM Executables")
+    print("=" * 50)
+    elmer_tests = []
+
+    for cmd in ["ElmerSolver", "ElmerGrid", "ElmerGUI"]:
+        try:
+            result = subprocess.run([cmd, "--version"], capture_output=True, text=True, timeout=2)
+            if result.returncode == 0 or "Elmer" in result.stdout or "Elmer" in result.stderr:
+                elmer_tests.append((cmd, True, "found"))
+            else:
+                elmer_tests.append((cmd, False, "not working"))
+        except:
+            elmer_tests.append((cmd, False, "not found"))
+
+    for name, passed, info in elmer_tests:
         status = "✓" if passed else "✗"
         print(f"{status} {name:15s} {info}")
         if not passed:
@@ -91,7 +134,7 @@ if __name__ == "__main__":
     sys.exit(test_imports())
 EOF
 
-chmod +x /workspace/test_openems.py
+chmod +x /workspace/test_environment.py
 
 # Set up VNC directory
 echo "Setting up VNC configuration..."
@@ -122,13 +165,19 @@ echo "========================================="
 echo "Setup complete!"
 echo ""
 echo "Next steps:"
-echo "1. Test installation: python3 test_openems.py"
+echo "1. Test installation: python3 test_environment.py"
 echo "2. Start GUI: bash setup_gui.sh"
 echo "3. Access desktop: http://localhost:6080/vnc.html"
 echo "4. Password: openems"
 echo ""
+echo "Available Tools:"
+echo "  - OpenEMS: High-frequency EM simulation (FDTD)"
+echo "  - ElmerFEM: Low-frequency/DC FEM simulation"
+echo "  - Gmsh: Mesh generation"
+echo ""
 echo "Documentation:"
 echo "  README.md - Quick start guide"
-echo "  Tutorials/README.md - Tutorial examples"
-echo "  examples/README.md - Custom examples"
+echo "  Tutorials/README.md - OpenEMS tutorial examples"
+echo "  examples/README.md - OpenEMS custom examples"
+echo "  elmerfem-examples/ - ElmerFEM examples (TBD)"
 echo "========================================="

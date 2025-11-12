@@ -2,16 +2,35 @@
 **/*.h5
 **/*.vtr
 **/*.vtk
+**/*.vtu
 *.xml
 **/*.csv
 **/tmp/
 
-# Simulation directories
+# Simulation directories (OpenEMS and ElmerFEM)
 *_sim/
 *_simulation/
 plane_wave_sim/
 microstrip_vtk_sim/
 microstrip_simulation/
+tapered_trace_sim/
+tapered_trace_2d_sim/
+tapered_working_sim/
+simple_resistor_sim/
+no_pml_test/
+mesh_coords_test/
+
+# ElmerFEM specific outputs
+**/*.msh
+**/mesh.nodes
+**/mesh.elements
+**/mesh.boundary
+**/mesh.header
+**/mesh.names
+**/entities.sif
+**/*.ep
+**/*.dat
+**/*.result
 
 # Python
 __pycache__/

@@ -1,6 +1,6 @@
 {
   "name": "OpenEMS PCB Simulation Environment",
-  "image": "openems-dev"
+  "image": "openems-elmerfem-dev"
 
   // Container configuration
   "runArgs": [

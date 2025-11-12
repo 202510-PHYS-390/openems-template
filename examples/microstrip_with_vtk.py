@@ -53,17 +53,18 @@ substrate = CSX.AddMaterial('FR4', epsilon=substrate_er)
 copper = CSX.AddMetal('copper')
 
 # Substrate
+# IMPORTANT: Use mesh coordinates (NOT SI units!)
 substrate.AddBox(
     priority=0,
     start=[0, 0, 0],
-    stop=[substrate_width * unit, substrate_length * unit, substrate_height * unit]
+    stop=[substrate_width, substrate_length, substrate_height]
 )
 
 # Ground plane
 copper.AddBox(
     priority=10,
     start=[0, 0, 0],
-    stop=[substrate_width * unit, substrate_length * unit, 0]
+    stop=[substrate_width, substrate_length, 0]
 )
 
 # Trace (centered)
@@ -72,10 +73,10 @@ trace_y_start = (substrate_length - trace_length) / 2.0
 
 copper.AddBox(
     priority=10,
-    start=[trace_x_start * unit, trace_y_start * unit, substrate_height * unit],
-    stop=[(trace_x_start + trace_width) * unit,
-          (trace_y_start + trace_length) * unit,
-          (substrate_height + trace_thickness) * unit]
+    start=[trace_x_start, trace_y_start, substrate_height],
+    stop=[trace_x_start + trace_width,
+          trace_y_start + trace_length,
+          substrate_height + trace_thickness]
 )
 
 print(f"  Substrate: {substrate_width} × {substrate_length} × {substrate_height} mm")
@@ -95,14 +96,15 @@ mesh.SmoothMeshLines('y', 0.5, 1.3)
 mesh.SmoothMeshLines('z', 0.1, 1.3)
 
 # Lumped port at start of trace
+# IMPORTANT: Use mesh coordinates (NOT SI units!)
 print("\nSetting up port...")
 port_x = substrate_width / 2.0
 port_y_start = trace_y_start
 
 port = FDTD.AddLumpedPort(
     1, 50,
-    start=[port_x * unit, port_y_start * unit, 0],
-    stop=[port_x * unit, port_y_start * unit, substrate_height * unit],
+    start=[port_x, port_y_start, 0],
+    stop=[port_x, port_y_start, substrate_height],
     p_dir='z', excite=1, priority=5
 )
 
@@ -113,10 +115,12 @@ port = FDTD.AddLumpedPort(
 print("\nConfiguring VTK dumps for ParaView...")
 
 # Define dump region (entire substrate + some air)
-dump_start = [-2 * unit, -2 * unit, -1 * unit]
-dump_stop = [(substrate_width + 2) * unit,
-             (substrate_length + 2) * unit,
-             (substrate_height + 2) * unit]
+# IMPORTANT: Dump coordinates must be in mesh coordinates (NOT SI units!)
+# Mesh is defined in mm, so dump uses same mm coordinates
+dump_start = [-2, -2, -1]
+dump_stop = [substrate_width + 2,
+             substrate_length + 2,
+             substrate_height + 2]
 
 # E-field dump (every 10 timesteps)
 Et_dump = CSX.AddDump('Et', dump_type=0, file_type=0, dump_mode=2)
