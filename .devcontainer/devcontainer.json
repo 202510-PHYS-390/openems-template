@@ -1,6 +1,6 @@
 {
   "name": "OpenEMS PCB Simulation Environment",
-  "image": "ghcr.io/202510-phys-390/openems:1"
+  "image": "ghcr.io/202510-phys-390/openems:1",
 
   // Container configuration
   "runArgs": [
