@@ -5,7 +5,7 @@
 # Includes:
 #   - OpenEMS: FDTD electromagnetic simulator (high-frequency)
 #   - ElmerFEM: Finite element multiphysics (DC/low-frequency, thermal, structural)
-FROM --platform=linux/amd64 ubuntu:22.04
+FROM ubuntu:22.04
 
 # Prevent interactive prompts during build
 ENV DEBIAN_FRONTEND=noninteractive
@@ -154,6 +154,7 @@ RUN apt-get update && apt-get install -y \
     libmetis-dev \
     # Mesh tools
     gmsh \
+    python3-gmsh \
     # Qt for ElmerGUI (qtbase5-dev includes Qt5::Xml)
     qtbase5-dev \
     libqt5opengl5-dev \
@@ -193,8 +194,8 @@ WORKDIR /tmp
 RUN rm -rf /tmp/elmerfem
 
 # Install Python packages for ElmerFEM pre/post-processing
+# Note: gmsh is installed via apt (python3-gmsh) for ARM64 compatibility
 RUN pip3 install --no-cache-dir \
-    gmsh \
     meshio \
     pygmsh \
     pyvista

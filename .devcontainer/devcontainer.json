@@ -1,6 +1,6 @@
 {
   "name": "OpenEMS PCB Simulation Environment",
-  "image": "openems-elmerfem-dev"
+  "image": "ghcr.io/202510-phys-390/openems:1"
 
   // Container configuration
   "runArgs": [
@@ -54,7 +54,7 @@
   "postCreateCommand": "bash .devcontainer/post-create.sh",
 
   // Post-start command to launch VNC
-  "postStartCommand": "bash .devcontainer/start-vnc.sh",
+  // "postStartCommand": "bash .devcontainer/start-vnc.sh",
 
   // Features to add
   "features": {
