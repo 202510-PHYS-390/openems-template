@@ -53,6 +53,12 @@ ls microstrip_simulation/
 - **Gmsh** - Mesh generation with Python API
 - **Use cases:** DC current flow, IR drop, power distribution networks, current density (<1 MHz)
 
+### KiCAD Integration (NEW!)
+- **KiCAD** - PCB design software pre-installed
+- **Gerber2EMS** - Convert KiCAD Gerber files → OpenEMS simulations
+- **STEP Import** - Import KiCAD 3D models → Gmsh → ElmerFEM
+- **Real PCB workflows** - Design in KiCAD, simulate electromagnetics
+
 ### Common Tools
 - **Python bindings** - Full Python API for both simulators
 - **VNC Desktop** - Browser-accessible XFCE desktop for visualization
@@ -68,11 +74,14 @@ ls microstrip_simulation/
 │   └── README.md         # OpenEMS examples documentation
 ├── elmerfem-examples/    # ElmerFEM example simulations
 │   └── README.md         # ElmerFEM examples documentation
+├── kicad-examples/       # KiCAD → simulation workflows (NEW!)
+│   ├── README.md         # Complete KiCAD workflows guide
+│   └── gerber2ems_template/  # Templates for Gerber2EMS
 ├── Tutorials/            # Official OpenEMS tutorials
 │   └── README.md         # Tutorial documentation
 ├── PARAVIEW_GUIDE.md     # ParaView visualization guide
 ├── simulations/          # Your simulation workspace
-└── pcb-designs/          # KiCad projects (if using)
+└── pcb-designs/          # KiCAD projects workspace
 ```
 
 ## For Students
@@ -83,10 +92,16 @@ ls microstrip_simulation/
 3. Run simulations in a separate terminal
 4. View plots in browser window
 
+**Want to simulate real PCB designs?**
+- See `kicad-examples/README.md` for KiCAD → simulation workflows
+- **Workflow 1:** KiCAD → Gerber2EMS → OpenEMS (S-parameters, RF)
+- **Workflow 2:** KiCAD → STEP → Gmsh → ElmerFEM (current flow, IR drop)
+
 **Need help?**
 - See `Tutorials/README.md` for OpenEMS tutorial examples
 - See `examples/README.md` for OpenEMS custom examples
 - See `elmerfem-examples/README.md` for ElmerFEM examples
+- See `kicad-examples/README.md` for KiCAD integration workflows
 - See `PARAVIEW_GUIDE.md` for 3D field visualization
 - Check logs: `~/.vnc/*.log` and `/tmp/novnc.log`
 
@@ -101,7 +116,10 @@ See `DEPLOYMENT.md` for full GitHub Codespaces deployment guide.
 - **OpenEMS:** v0.0.36+ (built from source)
 - **CSXCAD:** v0.6.3+ (built from source)
 - **ElmerFEM:** Latest (built from source with MUMPS/Hypre solvers)
-- **Gmsh:** 4.11+ (mesh generator with Python API)
+- **Gmsh:** 4.11+ (mesh generator with Python API, OpenCASCADE support)
+- **KiCAD:** Latest from Ubuntu repository (PCB design)
+- **Gerber2EMS:** Latest from GitHub (via pipx)
+- **gerbv:** Gerber file viewer and processor
 - **Python:** 3.10+ (numpy, matplotlib, h5py, gmsh, meshio, pyvista)
 - **Desktop:** XFCE4 via TigerVNC
 - **Web Access:** noVNC on port 6080

@@ -1,6 +1,8 @@
 # OpenEMS + ElmerFEM Development Container with VNC Desktop
 # Force amd64/x86_64 architecture for better compatibility
 # (OpenEMS build tools are more mature on x86_64)
+# build command:
+#   docker buildx build --platform linux/arm64,linux/amd64 --tag ghcr.io/202510-phys-390/openems:1 .devcontainer
 #
 # Includes:
 #   - OpenEMS: FDTD electromagnetic simulator (high-frequency)
@@ -138,6 +140,40 @@ RUN pip3 install --no-cache-dir \
 # Or use Python-based visualization with vtk
 
 # ========================================================================
+# KiCAD and PCB Import Tools
+# ========================================================================
+
+# Install KiCAD (latest version from Ubuntu repository)
+# Install gerbv for Gerber file viewing and processing
+RUN apt-get update && apt-get install -y \
+    kicad \
+    kicad-libraries \
+    gerbv \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install gerber2ems only on AMD64 (triangle package has ARM64 compilation issues)
+# ARM64 users can still use Docker emulation (--platform linux/amd64) if needed
+RUN if [ "$(uname -m)" = "x86_64" ]; then \
+        echo "Installing gerber2ems on AMD64..." && \
+        apt-get update && \
+        apt-get install -y pipx && \
+        apt-get clean && \
+        rm -rf /var/lib/apt/lists/* && \
+        pipx ensurepath && \
+        git clone https://github.com/antmicro/gerber2ems.git /tmp/gerber2ems && \
+        cd /tmp/gerber2ems && \
+        pipx install --system-site-packages . && \
+        rm -rf /tmp/gerber2ems && \
+        export PATH="/root/.local/bin:${PATH}"; \
+    else \
+        echo "Skipping gerber2ems on ARM64 (use --platform linux/amd64 for emulation if needed)"; \
+    fi
+
+# Add pipx binaries to PATH for all users (if pipx was installed)
+ENV PATH="/root/.local/bin:${PATH}"
+
+# ========================================================================
 # ElmerFEM Installation
 # ========================================================================
 
@@ -200,11 +236,28 @@ RUN pip3 install --no-cache-dir \
     pygmsh \
     pyvista
 
+# ========================================================================
+# Node.js and npm Installation (for Claude Code support)
+# ========================================================================
+
+# Install Node.js 20.x LTS from NodeSource
+RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
+    apt-get install -y nodejs && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+# Verify installation
+RUN node --version && npm --version
+
 # Set up workspace
 WORKDIR /workspace
 
 # Create directories for student work
-RUN mkdir -p /workspace/simulations /workspace/pcb-designs /workspace/examples /workspace/elmerfem-examples
+RUN mkdir -p /workspace/simulations \
+    /workspace/pcb-designs \
+    /workspace/kicad-examples \
+    /workspace/examples \
+    /workspace/elmerfem-examples
 
 # Expose VNC and noVNC ports
 EXPOSE 5901 6080

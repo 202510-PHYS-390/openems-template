@@ -1,0 +1,78 @@
+{
+  "frequency": {
+    "start": 1e9,
+    "stop": 10e9,
+    "points": 100,
+    "comment": "Frequency sweep from 1 GHz to 10 GHz, 100 points"
+  },
+  "mesh": {
+    "resolution": {
+      "x": 0.1e-3,
+      "y": 0.1e-3,
+      "z": 0.05e-3,
+      "comment": "Mesh cell size in meters (0.1 mm x 0.1 mm x 0.05 mm)"
+    },
+    "smoothing": {
+      "enabled": true,
+      "ratio": 1.3,
+      "comment": "Gradual mesh transition with 1.3 expansion ratio"
+    }
+  },
+  "ports": [
+    {
+      "name": "port1",
+      "type": "microstrip",
+      "position": {
+        "x": 0,
+        "y": 0,
+        "comment": "Position in mm, relative to drill origin (bottom-left)"
+      },
+      "impedance": 50,
+      "direction": "+x",
+      "comment": "Input port at start of trace"
+    },
+    {
+      "name": "port2",
+      "type": "microstrip",
+      "position": {
+        "x": 20,
+        "y": 0
+      },
+      "impedance": 50,
+      "direction": "-x",
+      "comment": "Output port at end of trace"
+    }
+  ],
+  "excitation": {
+    "type": "gaussian",
+    "f0": 5.5e9,
+    "fc": 4.5e9,
+    "comment": "Gaussian pulse centered at 5.5 GHz with 4.5 GHz bandwidth"
+  },
+  "boundary_conditions": {
+    "type": "PML",
+    "layers": 8,
+    "comment": "Perfectly Matched Layer absorbing boundary, 8 cells thick"
+  },
+  "field_dumps": {
+    "enabled": true,
+    "format": "vtk",
+    "types": ["E", "H"],
+    "comment": "Export electric and magnetic fields as VTK for ParaView"
+  },
+  "comments": {
+    "port_placement": "Mark port locations on F.Fab layer in KiCAD",
+    "drill_origin": "Set drill origin to bottom-left corner in KiCAD (Edit → Origin → Drill and Place Offset)",
+    "port_direction": "+x or -x indicates which direction the port excites/measures",
+    "impedance": "Typically 50 Ω for RF circuits",
+    "mesh_tips": {
+      "coarse": "0.2mm - fast, less accurate",
+      "medium": "0.1mm - good balance (default)",
+      "fine": "0.05mm - slow, high accuracy"
+    },
+    "frequency_tips": {
+      "max_freq_rule": "Maximum frequency should satisfy: wavelength/10 > mesh_size",
+      "at_10GHz_in_FR4": "wavelength ≈ 14mm, so mesh should be < 1.4mm (we use 0.1mm)"
+    }
+  }
+}

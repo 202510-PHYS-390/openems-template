@@ -4,6 +4,7 @@
 
   // Container configuration
   "runArgs": [
+    "--platform=linux/amd64",  // Force AMD64 for gerber2ems compatibility
     "--init",
     "--privileged"
   ],
@@ -35,7 +36,8 @@
       "extensions": [
         "ms-python.python",
         "ms-python.vscode-pylance",
-        "ms-toolsai.jupyter"
+        "ms-toolsai.jupyter",
+        "ms-vscode-remote.remote-containers"
       ],
       "settings": {
         "python.defaultInterpreterPath": "/usr/bin/python3",
@@ -56,17 +58,18 @@
   // Post-start command to launch VNC
   // "postStartCommand": "bash .devcontainer/start-vnc.sh",
 
-  // Features to add
-  "features": {
-    "ghcr.io/devcontainers/features/common-utils:2": {
-      "installZsh": true,
-      "installOhMyZsh": false,
-      "upgradePackages": true
-    },
-    "ghcr.io/devcontainers/features/git:1": {
-      "version": "latest"
-    }
-  },
+  // Features removed - already included in base image
+  // Enabling features causes VS Code to rebuild with layered image
+  // "features": {
+  //   "ghcr.io/devcontainers/features/common-utils:2": {
+  //     "installZsh": true,
+  //     "installOhMyZsh": false,
+  //     "upgradePackages": true
+  //   },
+  //   "ghcr.io/devcontainers/features/git:1": {
+  //     "version": "latest"
+  //   }
+  // },
 
   // User configuration
   "remoteUser": "root",

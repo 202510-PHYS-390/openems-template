@@ -161,6 +161,11 @@ echo "# Matplotlib GUI support" >> ~/.bashrc
 echo "export DISPLAY=:1" >> ~/.bashrc
 echo "export MPLBACKEND=TkAgg" >> ~/.bashrc
 
+# Setup custom shell prompt
+echo "" >> ~/.bashrc
+echo "# Custom shell prompt" >> ~/.bashrc
+echo 'export PS1="\[\033[01;32m\]\u@\h\[\033[00m\]:\[\033[01;34m\]\w\[\033[00m\]\$ "' >> ~/.bashrc
+
 echo "========================================="
 echo "Setup complete!"
 echo ""

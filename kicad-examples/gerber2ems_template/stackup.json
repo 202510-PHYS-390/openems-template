@@ -1,0 +1,47 @@
+{
+  "layers": [
+    {
+      "name": "F.Cu",
+      "type": "copper",
+      "thickness": 35e-6,
+      "comment": "Top copper layer, 1 oz (35 µm)"
+    },
+    {
+      "name": "dielectric1",
+      "type": "dielectric",
+      "thickness": 1.6e-3,
+      "epsilon_r": 4.3,
+      "loss_tangent": 0.02,
+      "comment": "FR4 substrate, 1.6mm thick"
+    },
+    {
+      "name": "B.Cu",
+      "type": "copper",
+      "thickness": 35e-6,
+      "comment": "Bottom copper layer, 1 oz (35 µm)"
+    }
+  ],
+  "comments": {
+    "note": "This is a standard 2-layer FR4 PCB stackup",
+    "copper_thickness": "35 µm = 1 oz copper, 70 µm = 2 oz copper",
+    "common_dielectrics": {
+      "FR4": {
+        "epsilon_r": 4.3,
+        "loss_tangent": 0.02
+      },
+      "Rogers_RO4003C": {
+        "epsilon_r": 3.38,
+        "loss_tangent": 0.0027
+      },
+      "Rogers_RO4350B": {
+        "epsilon_r": 3.48,
+        "loss_tangent": 0.0037
+      }
+    },
+    "units": {
+      "thickness": "meters",
+      "epsilon_r": "dimensionless (relative permittivity)",
+      "loss_tangent": "dimensionless (tan δ)"
+    }
+  }
+}
