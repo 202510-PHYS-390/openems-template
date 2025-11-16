@@ -10,6 +10,7 @@
 # Simulation directories (OpenEMS and ElmerFEM)
 *_sim/
 *_simulation/
+simulation
 plane_wave_sim/
 microstrip_vtk_sim/
 microstrip_simulation/
