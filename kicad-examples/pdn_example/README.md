@@ -2,57 +2,71 @@
 
 ## Overview
 
-This example demonstrates **DC power distribution network analysis** using ElmerFEM with **realistic simulated IC loads**. Unlike simplified models with fixed voltage boundaries, this example models ICs as **resistive loads** that draw current based on the actual voltage delivered to them.
+This example demonstrates **DC power distribution network analysis** using ElmerFEM with **geometric resistors**. The key insight: **resistors are just narrow copper traces!** By making trace sections very narrow (0.1-0.2 mm wide), we create controlled resistances that simulate IC loads.
 
 ## Use Case
 
-**Problem:** You're designing a PCB that needs to deliver power at 3.3V from a voltage regulator to multiple ICs drawing a total of 1.0 A. You need to verify that the voltage drop across the power traces stays within specification (< 50 mV) to ensure proper IC operation.
+**Problem:** You're designing a PCB that needs to deliver power at 3.3V from a voltage regulator to multiple ICs. You need to understand voltage drops, current distribution, and power dissipation in the power distribution network.
 
-**Challenge:** The initial design uses narrow traces that create excessive IR drop. Your task is to widen the traces to meet the voltage drop specification.
+**Key Concept:** Instead of using complex load models, we model IC loads as **narrow copper traces**. The resistance comes purely from geometry:
+- Narrow trace = high resistance = simulates a load
+- Wide trace = low resistance = power distribution
 
 **What's Simulated:**
 - Voltage distribution across the PDN
-- **Realistic load behavior**: Current draw depends on delivered voltage
-- IR drop from regulator through traces to loads
-- Current density and current crowding in narrow traces
-- Power dissipation (I²R losses) and hotspots
-- Ground return path completing the circuit
+- **Geometric resistors**: Current flow through narrow copper sections
+- IR drop from regulator through traces to loads and back to ground
+- Current density and current crowding in narrow resistor regions
+- Power dissipation (I²R losses) showing where power is wasted
+- Complete circuit path: VDD → traces → narrow resistors → ground return
 
 ## PDN Geometry
 
-The example models a complete PCB power distribution network with realistic loads:
+The example models a simple but realistic power distribution network:
 
 ```
 VDD (3.3V)
     |
-    +--[Reg Trace 3.5mm]--+--[Main Bus 2.5mm]--+--[Branch 1.5mm]--[Load1: R=6.5Ω]--+
-                                                |                                    |
-                                                +--[Branch 1.5mm]--[Load2: R=10.8Ω]-+
-                                                |                                    |
-                                                +--[Branch 1.5mm]--[Load3: R=16.2Ω]-+
-                                                                                     |
-                                                                                     v
-GND (0V) <===[Ground Return 4mm wide]========================================
+    +--[Reg Trace 3.5mm]--[Main Bus 2.5mm]--+--[Branch 1.5mm]--+
+                                             |                  |
+                                             |         [Narrow Resistor]
+                                             |         0.2mm × 20mm
+                                             |                  |
+                                             +--[Branch 1.5mm]--+
+                                                       |
+                                              [Narrow Resistor]
+                                              0.1mm × 20mm
+                                                       |
+                                                       v
+GND (0V) <===[Ground Return 4mm wide]===================
 ```
 
 **Components:**
 - **Regulator trace:** 3.5 mm wide × 15 mm long (power from VDD)
 - **Main bus:** 2.5 mm wide × 30 mm long (distribution)
-- **Branch traces:** 1.5 mm wide × 10 mm long (to each load) **← Primary bottleneck!**
-- **Load resistors:** 1 mm wide × 20mm long (IC equivalent resistance)
+- **Branch traces:** 1.5 mm wide (connects to loads)
+- **Load 1 resistor:** **0.2 mm** wide × 20 mm long (narrow copper = resistance!)
+- **Load 2 resistor:** **0.1 mm** wide × 20 mm long (even narrower = 2× resistance!)
 - **Ground return:** 4 mm wide × 45 mm long (low-resistance return path)
 - **Copper thickness:** 35 µm (1 oz copper, standard PCB)
 
 **Electrical Properties:**
 - **Supply voltage**: 3.3 V at VDD input
 - **Ground reference**: 0 V at ground return
-- **Load 1**: Target 0.5 A at 3.25 V → R = 6.5 Ω
-- **Load 2**: Target 0.3 A at 3.25 V → R = 10.83 Ω
-- **Load 3**: Target 0.2 A at 3.25 V → R = 16.25 Ω
+- **Uniform material**: All copper (σ = 5.96×10⁷ S/m × 35µm = 2086 S effective)
 
-**Key Insight**: Loads are modeled as resistors! Actual current depends on delivered voltage:
-- If V_load = 3.25 V → I = V/R (design target)
-- If V_load < 3.25 V (due to IR drop) → I < target (realistic IC behavior)
+**Resistor Values (calculated):**
+```
+R = L / (σ_eff × w)
+
+Load 1: R₁ = 20mm / (2086 S × 0.2mm) ≈ 0.048 Ω
+Load 2: R₂ = 20mm / (2086 S × 0.1mm) ≈ 0.096 Ω (2× higher!)
+```
+
+**Key Insight**: Resistors are GEOMETRY, not materials!
+- Narrow trace → high resistance → acts like a load
+- Current flow creates voltage drop across the narrow section
+- Current density is 2× higher in the 0.1mm resistor
 
 ## Running the Simulation
 
@@ -64,304 +78,383 @@ Ensure you're in the dev container with ElmerFEM installed (available on the Elm
 
 ```bash
 cd /workspace/kicad-examples/pdn_example
-python3 pdn_analysis.py
+python3 pdn_geometric.py
 ```
 
 **Expected output:**
 ```
 ======================================================================
-PDN Analysis - Power Distribution Network Simulation
+PDN with Geometric Resistors
 ======================================================================
 
 Geometry:
-  PCB: 50.0 x 40.0 mm
-  Copper thickness: 0.035 mm (35.0 um)
+  Power traces: 3.5-1.5 mm wide
+  Load 1 resistor: 0.2 mm wide × 20.0 mm long
+  Load 2 resistor: 0.1 mm wide × 20.0 mm long
+  Ground return: 4.0 mm tall
 
-Electrical:
-  Supply voltage: 3.3 V
-  Total current: 1.0 A
-  Load 1: 0.5 A at (25.0, 30.0)
-  Load 2: 0.3 A at (35.0, 30.0)
-  Load 3: 0.2 A at (25.0, 10.0)
-  Max allowed voltage drop: 50.0 mV
+Material: Uniform copper (σ = 2.09e+03 S)
+
+Resistor resistance (approx):
+  R1 (0.2mm) ≈ 0.048 Ω
+  R2 (0.1mm) ≈ 0.096 Ω (2× higher resistance)
+
+Building geometry...
+  Resistor 1 width before fuse: 0.2000 mm
+  Resistor 2 width before fuse: 0.1000 mm
+✓ VDD: 1 edge(s)
+✓ GND: 1 edge(s)
 
 Generating mesh...
-  Nodes: ~2000-5000
-  Elements: ~3000-8000
+  Nodes: ~3000-6000
 
-Converting mesh to Elmer format...
 Running ElmerSolver...
+✓ Simulation completed!
 
-✓ Simulation completed successfully!
+✓ Results: simulation/pdn_geo0001.vtu
 
-Voltage Analysis:
-  Maximum voltage: 3.3000 V
-  Minimum voltage: 3.2XXX V
-  Total voltage drop: XX.XX mV
-  ✓ Voltage drop within spec (50.0 mV)
+Visualize: paraview simulation/pdn_geo0001.vtu
+
+You should see:
+  - PDN structure (power traces + ground)
+  - NARROW resistors (0.1mm wide)
+  - Voltage drops in resistors
+  - Current crowding in narrow regions
 ```
 
 **Simulation time:** ~10-30 seconds depending on mesh resolution
 
 ### Step 2: Visualize Results in ParaView
 
-The simulation creates `simulation/pdn.vtu` with the following fields:
+The simulation creates `simulation/pdn_geo0001.vtu` with the following fields:
 
 1. **Open ParaView:**
    ```bash
    bash setup_gui.sh
-   # In VNC desktop: paraview simulation/pdn.vtu
+   # In VNC desktop: paraview simulation/pdn_geo0001.vtu
    ```
 
-2. **Voltage Distribution:**
+2. **Voltage Distribution (Potential):**
    - Click "Apply" to load the data
    - Color by: `potential`
    - This shows the voltage at every point in the PDN
-   - Look for voltage drops from 3.3V (input) down to lower values (loads)
+   - Look for voltage drops from 3.3V (VDD input) → through narrow resistors → to 0V (ground)
+   - You should see the steepest voltage gradient in the narrow 0.1mm and 0.2mm resistor sections
 
 3. **Current Density:**
    - Color by: `current density`
    - Shows where current is concentrated
-   - Look for high current density in narrow traces (current crowding)
+   - **Key observation:** Current density should be ~2× higher in the 0.1mm resistor than the 0.2mm resistor
+   - Look for current crowding in the narrow resistor regions
    - Magnitude indicates A/m²
 
 4. **Joule Heating:**
    - Color by: `joule heating`
    - Shows power dissipation (I²R losses)
-   - Identifies hot spots where power is wasted
+   - **Key observation:** Heating is concentrated in the narrow resistor sections
+   - Identifies hot spots where power is wasted (resistors dissipate power!)
 
-5. **Electric Field:**
-   - Color by: `electric field`
+5. **Electric Field (Gradient):**
+   - Color by: `electric field` (or check available field names)
    - Shows field strength in V/m
    - Higher field = higher voltage gradient
+   - Should be strongest in the narrow resistor sections
 
 ## Understanding the Results
 
 ### Voltage Drop Analysis
 
-The key metric is the **voltage drop** from the regulator output (3.3V) to the load points.
+The key observation is how **voltage drops across the narrow resistor sections**.
 
-**Typical results:**
-- At regulator output: 3.300 V
-- At main bus: 3.295 V (5 mV drop)
-- At Load 1: 3.280 V (20 mV drop from source)
-- At Load 2: 3.285 V (15 mV drop from source)
-- At Load 3: 3.275 V (25 mV drop from source)
+**Expected voltage distribution:**
+- At VDD input (left edge): 3.300 V
+- Through regulator trace: ~3.295 V (minimal drop, wide trace)
+- Through main bus: ~3.290 V (minimal drop, wide trace)
+- At top of narrow resistors: ~3.285 V
+- **Across narrow resistors:** Steep voltage drop! (this is where resistance is!)
+- At bottom of resistors (ground plane): ~0.00 V
 
-**Interpretation:**
-- Each IC requires 3.3V ± tolerance (e.g., ±5% = 3.135-3.465V)
-- Voltage drop reduces available headroom
-- **Target:** Keep voltage drop < 50 mV for good design margin
+**Key Insight:**
+- Most voltage drop occurs in the **narrow resistor sections** (0.1mm and 0.2mm wide)
+- Wide traces (3.5mm, 2.5mm, 1.5mm) have negligible voltage drop
+- This demonstrates: **Resistance = Geometry!**
+  - R ∝ L / w (resistance proportional to length/width ratio)
+  - Narrow section = high resistance = large voltage drop
 
 ### Current Density
 
 Current density J (A/m²) shows how current distributes:
 
 **Expected patterns:**
-- **Highest density** in narrow branch traces (1 mm wide)
-- **Lower density** in wide regulator trace (3 mm wide)
-- **Non-uniform** distribution in corners and junctions
+- **Highest density** in the narrow resistor sections (0.1mm and 0.2mm wide)
+- **Lower density** in wide distribution traces (1.5-3.5mm wide)
+- **2× higher density in 0.1mm resistor** compared to 0.2mm resistor
+  - Same current flows through both (series circuit)
+  - J = I / A, so narrower width → higher density
 
 **Why it matters:**
-- High current density → higher resistance → more voltage drop
-- High current density → more heating
-- Excessive current density can cause:
-  - Electromigration (long-term reliability issue)
-  - Thermal issues
-  - Voltage drop exceeding spec
+- J = I / (w × t) where w = width, t = thickness
+- Narrow section = small cross-sectional area = high current density
+- High current density → more heating (Joule heating ∝ J²)
+- This demonstrates **current crowding** in narrow conductors
 
-**Rule of thumb:** Keep J < 20 A/mm² for reliability (< 2×10⁷ A/m²)
+**Physical insight:**
+- Current is conserved (same current flows through entire circuit)
+- Current density varies inversely with cross-section
+- Narrow resistor sections concentrate current → higher density
 
 ### Power Dissipation
 
 Joule heating P = I²R shows power wasted as heat:
 
 **Expected patterns:**
-- Concentrated in narrow, high-resistance paths
-- Minimal in wide, low-resistance traces
+- **Concentrated in the narrow resistor sections** (0.1mm and 0.2mm wide)
+- Minimal in wide distribution traces
+- Higher heating in the narrower (0.1mm) resistor due to higher resistance
 
 **Why it matters:**
-- Wasted power reduces efficiency
-- Heating can affect nearby components
-- Excessive heating may require thermal management
+- Resistors dissipate power: P = I²R = V²/R
+- Narrow sections have high resistance → more power dissipation
+- This is where the "load" actually consumes power
+- In a real PCB, this would be the IC power consumption
+
+**Physical insight:**
+- Power dissipation creates heat
+- In this geometric model, narrow resistors simulate IC power draw
+- Real ICs would have their own internal resistance creating this same effect
 
 ## Design Challenge
 
-**Initial Design:** The starting trace widths (3.5mm / 2.5mm / 1.5mm) are intentionally marginal and will likely **fail the 50 mV voltage drop spec**.
+**Understanding the Model:** This example uses geometric resistors (narrow traces) to demonstrate the concept. The resistors are intentionally narrow to create measurable voltage drops and current density variations.
 
-**Your Goal:** Iteratively widen traces to meet the < 50 mV spec at all load points.
+**Your Goal:** Modify the geometry to explore different design scenarios.
 
-### Optimization Strategy
+### Exploration Ideas
 
-1. **Identify the bottleneck**:
-   - Branch traces (1.5 mm) are the narrowest → highest resistance
-   - Distant loads will show larger voltage drops
-   - Run initial simulation to confirm
-
-2. **Widen traces systematically**:
+1. **Change resistor widths**:
    ```python
-   # Edit pdn_analysis.py, lines 35-47
+   # Edit pdn_geometric.py, lines 32-33
 
-   # Try increasing branch width first (biggest impact)
-   branch_width = 2.0  # mm (was 1.5)
+   # Make resistors narrower → higher resistance
+   resistor1_width = 0.15  # mm (was 0.2)
+   resistor2_width = 0.08  # mm (was 0.1)
 
-   # If still failing, widen main bus
-   bus_width = 3.0  # mm (was 2.5)
-
-   # Last resort: widen regulator trace
-   reg_trace_width = 4.5  # mm (was 3.5)
+   # Or wider → lower resistance
+   resistor1_width = 0.3  # mm
+   resistor2_width = 0.2  # mm
    ```
+   **Effect:** Observe how resistance and current density change
 
-3. **Re-run and verify**:
-   ```bash
-   python3 pdn_analysis.py
-   # Check voltage at load points in ParaView
-   ```
-
-4. **Iterate** until all loads meet < 50 mV drop
-
-### Design Tradeoffs
-
-- **Wider traces** → Lower R → Lower voltage drop ✓
-- **Wider traces** → More PCB area → Higher cost ✗
-- **Thicker copper** → Lower R → Better performance ✓
-- **Thicker copper** → Harder to fab → Higher cost ✗
-
-**Find the minimum widths that meet spec!**
-
-### Alternative Optimizations
-
-If widening traces isn't enough:
-
-1. **Thicker copper:**
+2. **Change resistor length**:
    ```python
-   copper_thickness = 0.070  # mm (2 oz copper)
+   # Edit pdn_geometric.py, line 34
+
+   resistor_length = 30.0  # mm (was 20.0)
    ```
+   **Effect:** Longer resistor → higher resistance → more voltage drop
 
-2. **Shorten traces** (move ICs closer to regulator)
+3. **Widen distribution traces**:
+   ```python
+   # Edit pdn_geometric.py, lines 17-19
 
-3. **Copper pours** instead of narrow traces
+   reg_trace_width = 5.0   # mm (was 3.5)
+   bus_width = 4.0         # mm (was 2.5)
+   branch_width = 2.5      # mm (was 1.5)
+   ```
+   **Effect:** Lower IR drop in distribution network (but resistors still dominate)
 
-4. **Multi-layer PDN** with vias for parallel paths
-
-### Verification workflow:
+### Re-run workflow:
 
 ```bash
-# 1. Edit pdn_analysis.py trace width parameters
+# 1. Edit pdn_geometric.py parameters
 # 2. Re-run simulation
-python3 pdn_analysis.py
+python3 pdn_geometric.py
 
-# 3. Open in ParaView and check voltages
-paraview simulation/pdn_t0001.vtu
+# 3. Open in ParaView and observe changes
+paraview simulation/pdn_geo0001.vtu
 
-# 4. Iterate until voltage drop < 50 mV at all loads
+# 4. Compare voltage drops and current densities
 ```
+
+### Understanding Geometric Resistors
+
+**Key Concept:** In PCB design, narrow traces naturally have higher resistance:
+- R = ρL / (wt) where ρ = resistivity, L = length, w = width, t = thickness
+- Making w very small → high resistance
+- This is how we create "loads" using only geometry
+
+**Real-world applications:**
+- Current sense resistors (use narrow trace sections)
+- Heating elements (narrow traces intentionally generate heat)
+- Fuses (narrow sections melt under overcurrent)
+
+**In this example:**
+- We intentionally make the "load" sections narrow (0.1-0.2mm)
+- This creates controlled resistance
+- Allows us to simulate IC loads without complex models
 
 ## Comparing to Analytical Calculations
 
-You can verify the simulation with simple resistor calculations:
+You can verify the simulation with simple resistor calculations.
 
-**Resistance of rectangular trace:**
+**For 2D analysis, use effective conductivity:**
 ```
-R = ρ × L / (W × T)
+σ_eff = σ × t = 5.96×10⁷ S/m × 35×10⁻⁶ m = 2086 S
+```
+
+**2D Resistance formula:**
+```
+R = L / (σ_eff × w)
 
 where:
-  ρ = resistivity of copper = 1.68×10⁻⁸ Ω·m
   L = length (m)
-  W = width (m)
-  T = thickness (m)
+  w = width (m)
+  σ_eff = effective conductivity (S)
 ```
 
-**Example: Regulator trace (3 mm wide, 15 mm long, 35 µm thick)**
+**Example: Load 1 resistor (0.2 mm wide, 20 mm long)**
 ```
-R = 1.68×10⁻⁸ × 0.015 / (0.003 × 35×10⁻⁶)
-R = 2.4 mΩ
-```
-
-**Voltage drop at 1 A:**
-```
-V_drop = I × R = 1.0 A × 2.4 mΩ = 2.4 mV
+R₁ = 0.020 m / (2086 S × 0.0002 m)
+R₁ = 0.020 / 0.4172
+R₁ ≈ 0.048 Ω (48 mΩ)
 ```
 
-The simulation should match this within ~10% (mesh discretization effects).
+**Example: Load 2 resistor (0.1 mm wide, 20 mm long)**
+```
+R₂ = 0.020 m / (2086 S × 0.0001 m)
+R₂ = 0.020 / 0.2086
+R₂ ≈ 0.096 Ω (96 mΩ)
+```
+
+**Note:** R₂ = 2 × R₁ because width is half!
+
+The simulation should match these analytical values within ~10% (mesh discretization effects).
 
 ## Extending the Example
 
-### Add more loads:
+### Add more geometric resistors:
 
-1. Define new load positions in the script
-2. Add new branch traces and pads
-3. Update load currents
-4. Re-run simulation
+1. Define new load positions in `pdn_geometric.py`
+2. Add new branch traces connecting to resistor tops
+3. Create new narrow resistor rectangles with different widths
+4. Fuse new resistors into the main conductor
+5. Re-run simulation and compare current densities
 
-### Model a real PCB:
+**Example:** Add a third load with 0.15 mm width to see intermediate behavior
 
-1. Design PCB in KiCAD
-2. Export STEP file (File → Export → STEP)
-3. Import STEP geometry into Gmsh
-4. Adapt this script to use imported geometry
-5. Assign materials and boundary conditions
+### Model different resistor ratios:
+
+Try creating resistors with different aspect ratios:
+```python
+# Short, very narrow → high resistance per mm
+resistor_width = 0.05   # mm
+resistor_length = 10.0  # mm
+
+# Long, moderately narrow → same total resistance
+resistor_width = 0.1    # mm
+resistor_length = 20.0  # mm
+```
 
 ### Add thermal coupling:
 
 ElmerFEM can solve coupled thermal-electrical problems:
-- Joule heating generates heat
-- Temperature affects copper resistivity
-- Requires heat equation solver (more advanced)
+- Joule heating in resistors generates heat
+- Temperature affects copper resistivity (ρ increases with T)
+- Requires heat equation solver + temperature-dependent conductivity
+- More advanced, but shows realistic thermal-electrical coupling
 
 ## Common Issues
+
+### Resistor widths change after fusing:
+
+**Symptom:** Narrow resistors appear wider than expected in ParaView
+
+**Check:**
+- Look at "width before fuse" debug output in the script
+- Gmsh may merge nearby vertices if too close
+- Solution: Use very fine mesh (0.05 mm) in resistor regions (already configured)
+- Verify resistor geometry before `fuse` operation
+
+### Mesh is too coarse in narrow regions:
+
+**Symptom:** Results look blocky or inaccurate in resistors
+
+**Solution:**
+- The script already sets fine mesh (0.05 mm) near load positions
+- For even finer resolution, reduce mesh size:
+  ```python
+  gmsh.model.mesh.setSize(nearby, 0.025)  # 25 µm mesh
+  ```
 
 ### Simulation diverges:
 
 **Symptom:** ElmerSolver reports "not converged" or very large residuals
 
 **Solutions:**
-- Check that geometry doesn't have gaps or overlaps
-- Ensure boundary conditions are physically valid
-- Use Direct solver (already configured in this example)
-- Refine mesh near boundaries
+- Check that all geometry fuses correctly (no gaps!)
+- Ensure boundary conditions are on correct edges
+- Use Direct solver (UMFPack) - already configured
+- Refine mesh near narrow resistors
 
-### Voltage drop seems wrong:
+### Current density values seem wrong:
 
 **Check:**
-- Are load currents realistic? (1-2 A is typical for ICs)
-- Is copper conductivity correct? (5.96×10⁷ S/m for pure copper)
-- Is thickness scaled correctly? (35 µm = 0.035 mm)
-- Compare to analytical calculation (R = ρL/A)
+- Are units correct? (J in A/m²)
+- Remember: J = I / (w × t) where t = 35 µm = 35×10⁻⁶ m
+- For 0.1 mm wide resistor: cross-section = 0.1mm × 0.035mm = 3.5×10⁻⁹ m²
+- Even small current (~0.1 A) creates high J (~10⁷ A/m²)
 
-### VTU file has no fields:
+### VTU file missing fields:
 
 **Solution:**
-- Check `Exported Variable` declarations in SIF file
-- Ensure `Calculate ... = True` is set in Solver section
-- Verify ElmerSolver ran without errors (check solver.log)
+- Check that FluxSolver ran (Solver 2 in SIF)
+- Verify "Calculate Flux = True" in solver configuration
+- Current density comes from FluxSolver, not StatCurrentSolver
 
 ## Learning Objectives
 
 After completing this example, you should understand:
 
-1. How to model power distribution networks in ElmerFEM
-2. How to calculate and interpret voltage drop (IR drop)
-3. How current density varies with trace geometry
-4. The relationship between resistance, current, and voltage drop
-5. How to optimize PDN design for low voltage drop
-6. The trade-offs between trace width, cost, and performance
+1. **Geometric resistors:** How narrow traces create resistance purely through geometry
+2. **2D FEM analysis:** Using ElmerFEM to solve DC current flow problems
+3. **Resistance scaling:** R ∝ L/w relationship (length/width ratio)
+4. **Current density:** How J varies inversely with cross-sectional area
+5. **Voltage drops:** Where IR drop occurs in a conductor network
+6. **Current conservation:** Same current flows through series elements, but density varies
+7. **Joule heating:** Power dissipation concentrated in high-resistance regions
+8. **Mesh refinement:** Importance of fine mesh in narrow geometric features
+9. **Field visualization:** Using ParaView to understand current flow and voltage distribution
+10. **Analytical verification:** Comparing FEM results to simple calculations
 
 ## References
 
-- **ElmerFEM Tutorials:** http://www.elmerfem.org/
-- **PCB Design Guidelines:** IPC-2221 (trace current capacity)
-- **Voltage Drop Calculators:** https://www.4pcb.com/trace-width-calculator.html
-- **Copper Resistivity:** https://en.wikipedia.org/wiki/Electrical_resistivity_and_conductivity
+- **ElmerFEM Documentation:** http://www.elmerfem.org/
+- **ElmerFEM Tutorials:** Electrical conduction examples
+- **Gmsh Documentation:** https://gmsh.info/doc/texinfo/gmsh.html
+- **2D Sheet Resistance:** https://en.wikipedia.org/wiki/Sheet_resistance
+- **Copper Properties:** https://en.wikipedia.org/wiki/Electrical_resistivity_and_conductivity
+- **PCB Trace Resistance:** IPC-2221 standards
 
 ## Next Steps
 
-1. **Run the example** and visualize results
-2. **Modify parameters** (trace widths, currents) and observe effects
-3. **Design your own PDN** in KiCAD and import via STEP
-4. **Combine with thermal analysis** for complete power integrity study
-5. **Compare results** with OpenEMS for AC impedance analysis
+1. **Run `pdn_geometric.py`** and visualize results in ParaView
+2. **Modify resistor widths** (0.05-0.5 mm) and observe how resistance changes
+3. **Change resistor lengths** and verify R ∝ L relationship
+4. **Add a third resistor** with intermediate width (0.15 mm)
+5. **Compare analytical calculations** to FEM results
+6. **Explore current density** variations with geometry
+7. **Try thermal coupling** (advanced: temperature-dependent conductivity)
+
+## Summary
+
+This example demonstrates the **fundamental relationship between geometry and resistance**:
+- Narrow traces = high resistance
+- Wide traces = low resistance
+- Same material throughout (copper)
+- Resistance comes purely from geometry!
+
+**Key Takeaway:** You don't need special materials to create resistors on a PCB. Just make a trace narrow enough, and it becomes a resistor. This is how current-sense resistors, fuses, and heating elements work!
 
 ---
 
-**Happy PDN analyzing!**
+**Happy exploring!**
