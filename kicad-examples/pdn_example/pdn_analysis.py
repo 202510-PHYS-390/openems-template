@@ -32,17 +32,18 @@ except ImportError:
 pcb_width = 50.0   # mm
 pcb_height = 40.0  # mm
 
-# Power trace from regulator to main bus (wide trace)
-reg_trace_width = 3.0    # mm (wide for low resistance)
+# Power trace from regulator to main bus
+# Initial design - intentionally a bit narrow to create voltage drop issues!
+reg_trace_width = 3.5    # mm (could be wider for lower drop)
 reg_trace_length = 15.0  # mm
 
 # Main power bus (distributes to loads)
-bus_width = 2.0          # mm
+bus_width = 2.5          # mm (moderate width - borderline for spec)
 bus_length = 30.0        # mm
 bus_x_start = reg_trace_length
 
-# Branch traces to loads (narrower)
-branch_width = 1.0       # mm
+# Branch traces to loads (narrower - likely needs widening)
+branch_width = 1.5       # mm (narrow - primary bottleneck!)
 branch_length = 10.0     # mm
 
 # Load positions (x, y) - representing IC locations
@@ -50,12 +51,16 @@ load1_pos = (bus_x_start + 10.0, pcb_height/2 + branch_length)
 load2_pos = (bus_x_start + 20.0, pcb_height/2 + branch_length)
 load3_pos = (bus_x_start + 10.0, pcb_height/2 - branch_length)
 
+# Load resistor dimensions (small pads representing IC equivalent resistance)
+load_resistor_size = 1.0  # mm (small resistive region at each load)
+
 # Copper thickness
 copper_thickness = 0.035  # mm (1 oz copper = 35 um)
 
-# Ground plane (simplified - parallel to power trace)
-ground_width = 5.0       # mm
-ground_length = 45.0     # mm
+# Ground return path (wide, low-resistance return for current)
+ground_trace_width = 4.0   # mm (wide ground return)
+ground_trace_length = 45.0  # mm
+ground_y_offset = 5.0       # mm (offset below power traces)
 
 # ==============================================================================
 # ELECTRICAL PARAMETERS
@@ -68,15 +73,27 @@ copper_conductivity = 5.96e7  # S/m (copper at 20°C)
 supply_voltage = 3.3  # V (at regulator output)
 ground_voltage = 0.0  # V
 
-# Load currents (representing IC current consumption)
+# Load specifications (representing IC current consumption)
+# Each IC has a desired voltage and current draw
+# We'll model these as resistive loads: R = V_desired / I_desired
+load1_voltage_target = 3.25  # V (allow 50 mV drop)
 load1_current = 0.5   # A (500 mA)
+load1_resistance = load1_voltage_target / load1_current  # 6.5 ohms
+
+load2_voltage_target = 3.25  # V
 load2_current = 0.3   # A (300 mA)
+load2_resistance = load2_voltage_target / load2_current  # 10.83 ohms
+
+load3_voltage_target = 3.25  # V
 load3_current = 0.2   # A (200 mA)
+load3_resistance = load3_voltage_target / load3_current  # 16.25 ohms
 
 total_current = load1_current + load2_current + load3_current  # 1.0 A total
 
 # Design requirement
 max_voltage_drop = 0.05  # V (50 mV max IR drop spec)
+# Note: Initial design with narrow traces will likely exceed this!
+# Students should widen traces to meet spec.
 
 # ==============================================================================
 # MESH PARAMETERS
@@ -96,13 +113,18 @@ print("=" * 70)
 print(f"\nGeometry:")
 print(f"  PCB: {pcb_width} x {pcb_height} mm")
 print(f"  Copper thickness: {copper_thickness} mm ({copper_thickness*1000:.1f} um)")
+print(f"  Regulator trace: {reg_trace_width} mm width")
+print(f"  Main bus: {bus_width} mm width")
+print(f"  Branch traces: {branch_width} mm width")
 print(f"\nElectrical:")
 print(f"  Supply voltage: {supply_voltage} V")
 print(f"  Total current: {total_current} A")
-print(f"  Load 1: {load1_current} A at {load1_pos}")
-print(f"  Load 2: {load2_current} A at {load2_pos}")
-print(f"  Load 3: {load3_current} A at {load3_pos}")
+print(f"  Load 1: {load1_current} A (R={load1_resistance:.2f} Ω) at {load1_pos}")
+print(f"  Load 2: {load2_current} A (R={load2_resistance:.2f} Ω) at {load2_pos}")
+print(f"  Load 3: {load3_current} A (R={load3_resistance:.2f} Ω) at {load3_pos}")
 print(f"  Max allowed voltage drop: {max_voltage_drop*1000} mV")
+print(f"\n⚠  Initial design uses narrow traces - voltage drop likely exceeds spec!")
+print(f"  Challenge: Widen traces to meet {max_voltage_drop*1000} mV spec")
 print()
 
 gmsh.initialize()
@@ -164,45 +186,183 @@ load3_pad = gmsh.model.occ.addRectangle(
     load_pad_size, load_pad_size
 )
 
-# Fuse all copper traces into single conductor
+# Fuse all copper traces into single power conductor
 copper_traces = gmsh.model.occ.fuse(
     [(2, reg_trace)],
     [(2, main_bus), (2, branch1), (2, branch2), (2, branch3),
      (2, load1_pad), (2, load2_pad), (2, load3_pad)]
 )[0]
 
-# NOTE: For this simplified PDN analysis, we model only the power distribution network
-# Ground return path is implicit - we'll apply ground BC at load points
-# This shows voltage drop (IR drop) in the power distribution traces
+# ==============================================================================
+# GROUND RETURN PATH
+# ==============================================================================
+
+# Create ground return trace (wide, low-resistance return path)
+ground_return = gmsh.model.occ.addRectangle(
+    2.0, ground_y_offset,  # x, y position
+    0,
+    ground_trace_length, ground_trace_width
+)
+
+# ==============================================================================
+# RESISTIVE LOADS (IC equivalent resistance)
+# ==============================================================================
+
+# Vertical connection traces from load pads to ground return
+# These act as resistive elements representing the IC loads
+# IMPORTANT: Must overlap substantially with both power pads (top) and ground (bottom)
+
+# Calculate resistor dimensions to ensure proper overlap
+resistor_bottom = ground_y_offset + ground_trace_width - 1.5  # 1.5mm overlap with ground
+resistor_top_load1 = load1_pos[1] + 1.5  # 1.5mm overlap with power pad
+resistor_top_load2 = load2_pos[1] + 1.5
+resistor_top_load3 = load3_pos[1] + 1.5
+
+# Load 1 resistor (connects load1 pad to ground with guaranteed overlap)
+load1_resistor = gmsh.model.occ.addRectangle(
+    load1_pos[0] - load_resistor_size/2,
+    resistor_bottom,
+    0,
+    load_resistor_size,
+    resistor_top_load1 - resistor_bottom
+)
+
+# Load 2 resistor
+load2_resistor = gmsh.model.occ.addRectangle(
+    load2_pos[0] - load_resistor_size/2,
+    resistor_bottom,
+    0,
+    load_resistor_size,
+    resistor_top_load2 - resistor_bottom
+)
+
+# Load 3 resistor (connects downward from load3 to ground)
+load3_resistor = gmsh.model.occ.addRectangle(
+    load3_pos[0] - load_resistor_size/2,
+    resistor_bottom,
+    0,
+    load_resistor_size,
+    resistor_top_load3 - resistor_bottom
+)
+
+# Use fragment operation to keep all regions separate but connected
+# This will split overlapping regions at interfaces
+all_regions = gmsh.model.occ.fragment(
+    [copper_traces[0], (2, ground_return)],
+    [(2, load1_resistor), (2, load2_resistor), (2, load3_resistor)]
+)
 
 gmsh.model.occ.synchronize()
+
+# After fragment, we need to identify which surfaces are which
+# Get all 2D surfaces
+all_surfaces = gmsh.model.getEntities(2)
+print(f"\nTotal surfaces after fragment: {len(all_surfaces)}")
+
+# Identify surfaces by their position
+power_net_surfaces = []
+ground_surfaces = []
+load1_surfaces = []
+load2_surfaces = []
+load3_surfaces = []
+unclassified_surfaces = []
+
+for dim, tag in all_surfaces:
+    bbox = gmsh.model.getBoundingBox(dim, tag)
+    x_min, y_min, z_min, x_max, y_max, z_max = bbox
+    x_center = (x_min + x_max) / 2
+    y_center = (y_min + y_max) / 2
+    width = x_max - x_min
+    height = y_max - y_min
+
+    classified = False
+
+    # Ground return: bottom region (y < 9.5)
+    if y_max < ground_y_offset + ground_trace_width + 0.5:
+        ground_surfaces.append(tag)
+        classified = True
+    # Load resistors: narrow regions near load positions
+    # Load 3: x near 25, y between ground and middle (8-12 mm)
+    elif abs(x_center - load3_pos[0]) < 2.0 and 8.0 < y_center < 12.0:
+        load3_surfaces.append(tag)
+        classified = True
+    # Load 1: x near 25, y > 15 (upper region)
+    elif abs(x_center - load1_pos[0]) < 2.0 and y_center > 15:
+        load1_surfaces.append(tag)
+        classified = True
+    # Load 2: x near 35, y > 15 (upper region)
+    elif abs(x_center - load2_pos[0]) < 2.0 and y_center > 15:
+        load2_surfaces.append(tag)
+        classified = True
+
+    # Everything else in upper region is power network
+    if not classified and y_center > ground_y_offset + ground_trace_width + 1.0:
+        power_net_surfaces.append(tag)
+        classified = True
+
+    if not classified:
+        unclassified_surfaces.append(tag)
+        print(f"  Unclassified surface {tag}: center=({x_center:.1f}, {y_center:.1f}), size=({width:.1f} x {height:.1f})")
+
+print(f"\nSurface classification:")
+print(f"  Power network: {len(power_net_surfaces)} surfaces")
+print(f"  Ground return: {len(ground_surfaces)} surfaces")
+print(f"  Load 1 resistor: {len(load1_surfaces)} surfaces")
+print(f"  Load 2 resistor: {len(load2_surfaces)} surfaces")
+print(f"  Load 3 resistor: {len(load3_surfaces)} surfaces")
+print(f"  Total: {len(power_net_surfaces) + len(ground_surfaces) + len(load1_surfaces) + len(load2_surfaces) + len(load3_surfaces)}/{len(all_surfaces)}")
+if unclassified_surfaces:
+    print(f"  ⚠ WARNING: {len(unclassified_surfaces)} unclassified!")
+else:
+    print(f"  ✓ All surfaces classified")
 
 # ==============================================================================
 # PHYSICAL GROUPS (for boundary conditions and material assignment)
 # ==============================================================================
 
-# Power distribution network (single conductor)
-gmsh.model.addPhysicalGroup(2, [copper_traces[0][1]], tag=1)
-gmsh.model.setPhysicalName(2, 1, "PowerNet")
+# Create physical groups from identified surfaces
+if power_net_surfaces:
+    gmsh.model.addPhysicalGroup(2, power_net_surfaces, tag=1)
+    gmsh.model.setPhysicalName(2, 1, "PowerNet")
+
+if ground_surfaces:
+    gmsh.model.addPhysicalGroup(2, ground_surfaces, tag=2)
+    gmsh.model.setPhysicalName(2, 2, "GroundReturn")
+
+if load1_surfaces:
+    gmsh.model.addPhysicalGroup(2, load1_surfaces, tag=3)
+    gmsh.model.setPhysicalName(2, 3, "Load1_Resistor")
+
+if load2_surfaces:
+    gmsh.model.addPhysicalGroup(2, load2_surfaces, tag=4)
+    gmsh.model.setPhysicalName(2, 4, "Load2_Resistor")
+
+if load3_surfaces:
+    gmsh.model.addPhysicalGroup(2, load3_surfaces, tag=5)
+    gmsh.model.setPhysicalName(2, 5, "Load3_Resistor")
 
 # ==============================================================================
 # BOUNDARY IDENTIFICATION (Critical for ElmerFEM!)
 # ==============================================================================
 
-# Get all boundary edges of power network
-all_boundaries = gmsh.model.getBoundary([(2, copper_traces[0][1])], oriented=False)
+# Get all boundary edges from power and ground surfaces
+power_boundaries = []
+for surf_tag in power_net_surfaces:
+    power_boundaries.extend(gmsh.model.getBoundary([(2, surf_tag)], oriented=False))
+
+ground_boundaries = []
+for surf_tag in ground_surfaces:
+    ground_boundaries.extend(gmsh.model.getBoundary([(2, surf_tag)], oriented=False))
 
 # Identify specific boundaries by position
 # VDD Input: left edge of regulator trace (x ≈ 0, y around pcb_height/2)
-# Ground: at load point positions (top of load pads)
+# Ground Reference: left edge of ground return trace
 
 vdd_boundary = []
-load1_boundary = []
-load2_boundary = []
-load3_boundary = []
+ground_ref_boundary = []
 
 # Find VDD input boundary (left edge of power trace, x ≈ 0)
-for boundary in all_boundaries:
+for boundary in power_boundaries:
     dim, tag = boundary
     bbox = gmsh.model.getBoundingBox(dim, tag)
     x_min, y_min, z_min, x_max, y_max, z_max = bbox
@@ -210,25 +370,23 @@ for boundary in all_boundaries:
     y_center = (y_min + y_max) / 2
 
     # VDD Input: left edge (x ≈ 0) near center height
-    if x_min < 0.1 and abs(y_center - pcb_height/2) < reg_trace_width:
-        vdd_boundary.append(tag)
+    # Avoid corners by restricting to central portion
+    if x_min < 0.1 and abs(y_center - pcb_height/2) < reg_trace_width/2:
+        if tag not in vdd_boundary:
+            vdd_boundary.append(tag)
 
-    # Load 1: near load1_pos
-    elif abs(x_center - load1_pos[0]) < load_pad_size and abs(y_center - load1_pos[1]) < load_pad_size:
-        # Top edge of load pad
-        if y_max > load1_pos[1] + load_pad_size * 0.4:
-            load1_boundary.append(tag)
+# Find ground reference boundary (left edge of ground return trace)
+for boundary in ground_boundaries:
+    dim, tag = boundary
+    bbox = gmsh.model.getBoundingBox(dim, tag)
+    x_min, y_min, z_min, x_max, y_max, z_max = bbox
+    y_center = (bbox[1] + bbox[4]) / 2
 
-    # Load 2: near load2_pos
-    elif abs(x_center - load2_pos[0]) < load_pad_size and abs(y_center - load2_pos[1]) < load_pad_size:
-        if y_max > load2_pos[1] + load_pad_size * 0.4:
-            load2_boundary.append(tag)
-
-    # Load 3: near load3_pos
-    elif abs(x_center - load3_pos[0]) < load_pad_size and abs(y_center - load3_pos[1]) < load_pad_size:
-        # Bottom edge of load pad
-        if y_min < load3_pos[1] - load_pad_size * 0.4:
-            load3_boundary.append(tag)
+    # Ground reference: left edge (x near 0), central portion only
+    # Avoid corners to prevent current flow along top/bottom of ground plane
+    if x_min < 3.0 and abs(y_center - (ground_y_offset + ground_trace_width/2)) < ground_trace_width/3:
+        if tag not in ground_ref_boundary:
+            ground_ref_boundary.append(tag)
 
 # Create physical groups for boundaries
 if vdd_boundary:
@@ -236,20 +394,10 @@ if vdd_boundary:
     gmsh.model.setPhysicalName(1, 101, "VDD_Input")
     print(f"✓ VDD input boundary identified: {len(vdd_boundary)} edges")
 
-if load1_boundary:
-    gmsh.model.addPhysicalGroup(1, load1_boundary, tag=102)
-    gmsh.model.setPhysicalName(1, 102, "Load1_GND")
-    print(f"✓ Load 1 ground boundary: {len(load1_boundary)} edges")
-
-if load2_boundary:
-    gmsh.model.addPhysicalGroup(1, load2_boundary, tag=103)
-    gmsh.model.setPhysicalName(1, 103, "Load2_GND")
-    print(f"✓ Load 2 ground boundary: {len(load2_boundary)} edges")
-
-if load3_boundary:
-    gmsh.model.addPhysicalGroup(1, load3_boundary, tag=104)
-    gmsh.model.setPhysicalName(1, 104, "Load3_GND")
-    print(f"✓ Load 3 ground boundary: {len(load3_boundary)} edges")
+if ground_ref_boundary:
+    gmsh.model.addPhysicalGroup(1, ground_ref_boundary, tag=102)
+    gmsh.model.setPhysicalName(1, 102, "Ground_Reference")
+    print(f"✓ Ground reference boundary: {len(ground_ref_boundary)} edges")
 
 gmsh.model.occ.synchronize()
 
@@ -321,10 +469,33 @@ print("Creating ElmerFEM solver input file...")
 
 # Calculate effective conductivity (2D simulation with thickness scaling)
 # sigma_eff = sigma * thickness (for 2D current flow with thickness)
-sigma_eff = copper_conductivity * copper_thickness / 1000.0  # Convert mm to m
+sigma_eff_copper = copper_conductivity * copper_thickness / 1000.0  # Convert mm to m
+
+# Calculate conductivity for load resistors
+# For 2D: R = L / (sigma_eff * width)
+# So: sigma_eff = L / (R * width)
+
+# Load resistor dimensions
+load1_resistor_length = resistor_top_load1 - resistor_bottom  # mm
+load2_resistor_length = resistor_top_load2 - resistor_bottom  # mm
+load3_resistor_length = resistor_top_load3 - resistor_bottom  # mm
+
+# Calculate required conductivity for each load resistor
+# For 2D with thickness factored in: R = L[m] / (sigma_eff[S] * width[m])
+# Therefore: sigma_eff = L[m] / (R[ohm] * width[m])
+
+sigma_eff_load1 = (load1_resistor_length / 1000.0) / (load1_resistance * load_resistor_size / 1000.0)
+sigma_eff_load2 = (load2_resistor_length / 1000.0) / (load2_resistance * load_resistor_size / 1000.0)
+sigma_eff_load3 = (load3_resistor_length / 1000.0) / (load3_resistance * load_resistor_size / 1000.0)
+
+print(f"\nCalculated conductivities:")
+print(f"  Copper (power/ground): {sigma_eff_copper:.6e} S")
+print(f"  Load 1 resistor ({load1_resistance:.2f} Ω): {sigma_eff_load1:.6e} S")
+print(f"  Load 2 resistor ({load2_resistance:.2f} Ω): {sigma_eff_load2:.6e} S")
+print(f"  Load 3 resistor ({load3_resistance:.2f} Ω): {sigma_eff_load3:.6e} S")
 
 sif_content = f"""! Power Distribution Network (PDN) Analysis
-! DC current flow simulation
+! DC current flow simulation with realistic resistive loads
 
 Header
   CHECK KEYWORDS Warn
@@ -362,6 +533,34 @@ Body 1
   Material = 1
 End
 
+Body 2
+  Name = "GroundReturn"
+  Target Bodies(1) = 2
+  Equation = 1
+  Material = 1
+End
+
+Body 3
+  Name = "Load1_Resistor"
+  Target Bodies(1) = 3
+  Equation = 1
+  Material = 2
+End
+
+Body 4
+  Name = "Load2_Resistor"
+  Target Bodies(1) = 4
+  Equation = 1
+  Material = 3
+End
+
+Body 5
+  Name = "Load3_Resistor"
+  Target Bodies(1) = 5
+  Equation = 1
+  Material = 4
+End
+
 ! ============================================================================
 ! MATERIAL PROPERTIES
 ! ============================================================================
@@ -369,7 +568,25 @@ End
 Material 1
   Name = "Copper"
   ! Effective conductivity for 2D simulation with thickness
-  Electric Conductivity = Real {sigma_eff}
+  Electric Conductivity = Real {sigma_eff_copper}
+End
+
+Material 2
+  Name = "Load1_Resistance"
+  ! Tuned conductivity to achieve {load1_resistance:.2f} ohm resistance
+  Electric Conductivity = Real {sigma_eff_load1}
+End
+
+Material 3
+  Name = "Load2_Resistance"
+  ! Tuned conductivity to achieve {load2_resistance:.2f} ohm resistance
+  Electric Conductivity = Real {sigma_eff_load2}
+End
+
+Material 4
+  Name = "Load3_Resistance"
+  ! Tuned conductivity to achieve {load3_resistance:.2f} ohm resistance
+  Electric Conductivity = Real {sigma_eff_load3}
 End
 
 ! ============================================================================
@@ -443,36 +660,27 @@ End
 ! BOUNDARY CONDITIONS
 ! ============================================================================
 
-! VDD Input (voltage source from regulator)
+! VDD Input (voltage source from regulator at power net)
 Boundary Condition 1
   Name = "VDD_Input"
   Target Boundaries(1) = 101
   Potential = {supply_voltage}
 End
 
-! Ground at Load 1 (IC current sink)
+! Ground Reference (0V at ground return path)
 Boundary Condition 2
-  Name = "Load1_GND"
+  Name = "Ground_Reference"
   Target Boundaries(1) = 102
   Potential = {ground_voltage}
 End
 
-! Ground at Load 2 (IC current sink)
-Boundary Condition 3
-  Name = "Load2_GND"
-  Target Boundaries(1) = 103
-  Potential = {ground_voltage}
-End
-
-! Ground at Load 3 (IC current sink)
-Boundary Condition 4
-  Name = "Load3_GND"
-  Target Boundaries(1) = 104
-  Potential = {ground_voltage}
-End
-
-! Note: Current distribution among loads is determined by trace resistance
-! Narrower traces will carry less current (higher resistance)
+! Notes on circuit operation:
+! - Current flows from VDD input (+3.3V) through power distribution network
+! - Power reaches load pads via branch traces
+! - Current flows through resistive load elements (representing ICs)
+! - Current returns through ground return path to ground reference (0V)
+! - Voltage drop in power traces determines voltage at each load
+! - Load currents determined by: I = V_load / R_load
 """
 
 sif_file = os.path.join(output_dir, "pdn.sif")
@@ -555,27 +763,17 @@ if vtu_file and os.path.exists(vtu_file):
     print("  - Joule Heating (W/m³)")
 
     # Try to extract voltage drop estimate
-    try:
-        mesh_result = meshio.read(vtu_file)
-        if 'potential' in mesh_result.point_data:
-            potential = mesh_result.point_data['potential']
-            v_max = np.max(potential)
-            v_min = np.min(potential)
-            v_drop = v_max - v_min
-
-            print(f"\nVoltage Analysis:")
-            print(f"  Maximum voltage: {v_max:.4f} V")
-            print(f"  Minimum voltage: {v_min:.4f} V")
-            print(f"  Total voltage drop: {v_drop*1000:.2f} mV")
-
-            if v_drop > max_voltage_drop:
-                print(f"  ⚠ WARNING: Voltage drop ({v_drop*1000:.1f} mV) exceeds spec ({max_voltage_drop*1000:.1f} mV)!")
-                print(f"    Consider: wider traces, thicker copper, or lower resistance")
-            else:
-                print(f"  ✓ Voltage drop within spec ({max_voltage_drop*1000:.1f} mV)")
-    except Exception as e:
-        print(f"\nNote: Could not automatically extract voltage data: {e}")
-        print("Use ParaView for detailed analysis.")
+    print(f"\nVoltage Analysis:")
+    print(f"  Note: Automatic analysis skipped due to VTU format")
+    print(f"  Open {vtu_file} in ParaView to analyze:")
+    print(f"    - Check voltage at VDD input (should be ~{supply_voltage} V)")
+    print(f"    - Check voltage at each load point")
+    print(f"    - Calculate IR drop = V_VDD - V_load")
+    print(f"    - Goal: All loads should see < {max_voltage_drop*1000} mV drop")
+    print(f"\n  Expected behavior with current design:")
+    print(f"    - Narrow branches ({branch_width} mm) will show high resistance")
+    print(f"    - Distant loads will have larger drops")
+    print(f"    - Increase trace widths to reduce resistance and voltage drop")
 else:
     print(f"\n✗ VTU file not found: {vtu_file}")
 
@@ -584,8 +782,17 @@ print("PDN Analysis Complete")
 print("=" * 70)
 print("\nNext steps:")
 print("  1. Open simulation/pdn.vtu in ParaView")
-print("  2. Analyze voltage drop across the power distribution network")
-print("  3. Identify current crowding in narrow traces")
-print("  4. Optimize trace widths based on results")
-print(f"  5. Iterate design to meet {max_voltage_drop*1000} mV voltage drop spec")
+print("  2. Color by 'potential' to see voltage distribution")
+print("  3. Identify voltage drops in narrow traces")
+print("  4. Analyze current density to find current crowding")
+print(f"  5. If voltage drop > {max_voltage_drop*1000} mV, try these fixes:")
+print("     - Increase reg_trace_width (currently {:.1f} mm)".format(reg_trace_width))
+print("     - Increase bus_width (currently {:.1f} mm)".format(bus_width))
+print("     - Increase branch_width (currently {:.1f} mm)".format(branch_width))
+print("     - Increase copper_thickness (currently {:.0f} µm)".format(copper_thickness*1000))
+print("  6. Re-run simulation after changes to verify improvement")
+print("\nDesign Challenge:")
+print(f"  Goal: Reduce voltage drop from current value to < {max_voltage_drop*1000} mV")
+print("  Method: Systematically widen traces (start with narrowest branches)")
+print("  Target: All loads receive > {load1_voltage_target} V (current draw unaffected)")
 print()

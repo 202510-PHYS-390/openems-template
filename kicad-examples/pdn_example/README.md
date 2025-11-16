@@ -2,49 +2,57 @@
 
 ## Overview
 
-This example demonstrates **DC power distribution network analysis** using ElmerFEM to simulate voltage drop (IR drop), current density, and power dissipation in a realistic PCB power delivery system.
+This example demonstrates **DC power distribution network analysis** using ElmerFEM with **realistic simulated IC loads**. Unlike simplified models with fixed voltage boundaries, this example models ICs as **resistive loads** that draw current based on the actual voltage delivered to them.
 
 ## Use Case
 
-**Problem:** You're designing a PCB that needs to deliver 1 A of current at 3.3V from a voltage regulator to multiple ICs. You need to verify that the voltage drop across the power traces stays within specification (< 50 mV) to ensure proper IC operation.
+**Problem:** You're designing a PCB that needs to deliver power at 3.3V from a voltage regulator to multiple ICs drawing a total of 1.0 A. You need to verify that the voltage drop across the power traces stays within specification (< 50 mV) to ensure proper IC operation.
 
-**Solution:** Use ElmerFEM to simulate the DC current flow through the power distribution network and analyze:
+**Challenge:** The initial design uses narrow traces that create excessive IR drop. Your task is to widen the traces to meet the voltage drop specification.
+
+**What's Simulated:**
 - Voltage distribution across the PDN
-- IR drop from regulator to loads
-- Current density in traces
-- Power dissipation (I²R losses)
-- Identification of high-resistance bottlenecks
+- **Realistic load behavior**: Current draw depends on delivered voltage
+- IR drop from regulator through traces to loads
+- Current density and current crowding in narrow traces
+- Power dissipation (I²R losses) and hotspots
+- Ground return path completing the circuit
 
 ## PDN Geometry
 
-The example models a simplified PCB power distribution network:
+The example models a complete PCB power distribution network with realistic loads:
 
 ```
-                    Load 1 (500 mA)
-                         |
-VDD (3.3V) ----[Wide]----+=====[Bus]====+----+---- Load 2 (300 mA)
-Regulator      Trace                    |
-               3mm wide           Load 3 (200 mA)
-                                        |
-                                        |
-GND ============================================
-                Ground Plane
+VDD (3.3V)
+    |
+    +--[Reg Trace 3.5mm]--+--[Main Bus 2.5mm]--+--[Branch 1.5mm]--[Load1: R=6.5Ω]--+
+                                                |                                    |
+                                                +--[Branch 1.5mm]--[Load2: R=10.8Ω]-+
+                                                |                                    |
+                                                +--[Branch 1.5mm]--[Load3: R=16.2Ω]-+
+                                                                                     |
+                                                                                     v
+GND (0V) <===[Ground Return 4mm wide]========================================
 ```
 
 **Components:**
-- **Regulator trace:** 3 mm wide, 15 mm long (low resistance path from VDD)
-- **Main bus:** 2 mm wide, 30 mm long (distributes power)
-- **Branch traces:** 1 mm wide, 10 mm long (to each load)
-- **Load pads:** 0.5 mm × 0.5 mm (connection points for ICs)
-- **Ground plane:** 5 mm wide return path
+- **Regulator trace:** 3.5 mm wide × 15 mm long (power from VDD)
+- **Main bus:** 2.5 mm wide × 30 mm long (distribution)
+- **Branch traces:** 1.5 mm wide × 10 mm long (to each load) **← Primary bottleneck!**
+- **Load resistors:** 1 mm wide × 20mm long (IC equivalent resistance)
+- **Ground return:** 4 mm wide × 45 mm long (low-resistance return path)
 - **Copper thickness:** 35 µm (1 oz copper, standard PCB)
 
-**Electrical:**
-- Supply voltage: 3.3 V
-- Total current: 1.0 A (split among 3 loads)
-- Load 1: 500 mA
-- Load 2: 300 mA
-- Load 3: 200 mA
+**Electrical Properties:**
+- **Supply voltage**: 3.3 V at VDD input
+- **Ground reference**: 0 V at ground return
+- **Load 1**: Target 0.5 A at 3.25 V → R = 6.5 Ω
+- **Load 2**: Target 0.3 A at 3.25 V → R = 10.83 Ω
+- **Load 3**: Target 0.2 A at 3.25 V → R = 16.25 Ω
+
+**Key Insight**: Loads are modeled as resistors! Actual current depends on delivered voltage:
+- If V_load = 3.25 V → I = V/R (design target)
+- If V_load < 3.25 V (due to IR drop) → I < target (realistic IC behavior)
 
 ## Running the Simulation
 
@@ -177,45 +185,76 @@ Joule heating P = I²R shows power wasted as heat:
 - Heating can affect nearby components
 - Excessive heating may require thermal management
 
-## Design Optimization
+## Design Challenge
 
-Based on simulation results, you can optimize the PDN:
+**Initial Design:** The starting trace widths (3.5mm / 2.5mm / 1.5mm) are intentionally marginal and will likely **fail the 50 mV voltage drop spec**.
 
-### If voltage drop is too high:
+**Your Goal:** Iteratively widen traces to meet the < 50 mV spec at all load points.
 
-1. **Widen traces:**
-   - Resistance R ∝ 1/width
-   - Doubling width cuts resistance in half
-   - Edit `reg_trace_width`, `bus_width`, `branch_width` in script
+### Optimization Strategy
 
-2. **Use thicker copper:**
-   - Standard: 1 oz (35 µm)
-   - Heavy copper: 2 oz (70 µm) or 4 oz (140 µm)
-   - Resistance R ∝ 1/thickness
-   - Edit `copper_thickness` in script
+1. **Identify the bottleneck**:
+   - Branch traces (1.5 mm) are the narrowest → highest resistance
+   - Distant loads will show larger voltage drops
+   - Run initial simulation to confirm
 
-3. **Shorten traces:**
-   - Move components closer to regulator
-   - Reduce `reg_trace_length`, `branch_length`
+2. **Widen traces systematically**:
+   ```python
+   # Edit pdn_analysis.py, lines 35-47
 
-4. **Use copper pours:**
-   - Instead of narrow traces, use filled copper areas
-   - Much lower resistance
+   # Try increasing branch width first (biggest impact)
+   branch_width = 2.0  # mm (was 1.5)
 
-5. **Add parallel paths:**
-   - Use both top and bottom layer with vias
-   - Effective resistance: R_total = R1 || R2
+   # If still failing, widen main bus
+   bus_width = 3.0  # mm (was 2.5)
+
+   # Last resort: widen regulator trace
+   reg_trace_width = 4.5  # mm (was 3.5)
+   ```
+
+3. **Re-run and verify**:
+   ```bash
+   python3 pdn_analysis.py
+   # Check voltage at load points in ParaView
+   ```
+
+4. **Iterate** until all loads meet < 50 mV drop
+
+### Design Tradeoffs
+
+- **Wider traces** → Lower R → Lower voltage drop ✓
+- **Wider traces** → More PCB area → Higher cost ✗
+- **Thicker copper** → Lower R → Better performance ✓
+- **Thicker copper** → Harder to fab → Higher cost ✗
+
+**Find the minimum widths that meet spec!**
+
+### Alternative Optimizations
+
+If widening traces isn't enough:
+
+1. **Thicker copper:**
+   ```python
+   copper_thickness = 0.070  # mm (2 oz copper)
+   ```
+
+2. **Shorten traces** (move ICs closer to regulator)
+
+3. **Copper pours** instead of narrow traces
+
+4. **Multi-layer PDN** with vias for parallel paths
 
 ### Verification workflow:
 
 ```bash
-# 1. Edit pdn_analysis.py parameters
+# 1. Edit pdn_analysis.py trace width parameters
 # 2. Re-run simulation
 python3 pdn_analysis.py
 
-# 3. Check voltage drop in output
-# 4. Visualize in ParaView
-# 5. Iterate until voltage drop < spec
+# 3. Open in ParaView and check voltages
+paraview simulation/pdn_t0001.vtu
+
+# 4. Iterate until voltage drop < 50 mV at all loads
 ```
 
 ## Comparing to Analytical Calculations
