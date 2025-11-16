@@ -67,7 +67,7 @@ sleep 1
 
 # Start VNC server
 echo "Starting VNC server..."
-vncserver :1 -geometry 1280x720 -depth 24 -localhost no
+vncserver :1 -geometry 1920x1080 -depth 24 -localhost no
 echo "Waiting for desktop to initialize..."
 sleep 8
 

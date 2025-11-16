@@ -2,7 +2,7 @@
 # Force amd64/x86_64 architecture for better compatibility
 # (OpenEMS build tools are more mature on x86_64)
 # build command:
-#   docker buildx build --platform linux/arm64,linux/amd64 --tag ghcr.io/202510-phys-390/openems:1 .devcontainer
+#   docker buildx build --push --platform linux/amd64 --tag ghcr.io/202510-phys-390/openems:1 .devcontainer
 #
 # Includes:
 #   - OpenEMS: FDTD electromagnetic simulator (high-frequency)
@@ -22,7 +22,7 @@ RUN apt-get clean && \
 ENV DISPLAY=:1
 ENV VNC_PORT=5901
 ENV NOVNC_PORT=6080
-ENV VNC_RESOLUTION=1280x720
+ENV VNC_RESOLUTION=1920x1080
 
 # Install base dependencies
 RUN apt-get update && apt-get install -y \
@@ -143,9 +143,21 @@ RUN pip3 install --no-cache-dir \
 # KiCAD and PCB Import Tools
 # ========================================================================
 
-# Install KiCAD (latest version from Ubuntu repository)
-# Install gerbv for Gerber file viewing and processing
+# Install KiCAD 9.0+ from official PPA
+# Install dependencies for PPA management and GPG key handling
 RUN apt-get update && apt-get install -y \
+    software-properties-common \
+    dirmngr \
+    ca-certificates \
+    gnupg \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+# Add KiCad 9.0 PPA and install
+# Using --yes to avoid prompts, --no-update to handle apt update separately
+RUN add-apt-repository --yes --no-update ppa:kicad/kicad-9.0-releases \
+    && apt-get update \
+    && apt-get install -y --install-recommends \
     kicad \
     kicad-libraries \
     gerbv \
