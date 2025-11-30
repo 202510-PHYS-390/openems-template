@@ -261,6 +261,16 @@ RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
 # Verify installation
 RUN node --version && npm --version
 
+RUN pip3 install -U pip
+
+WORKDIR /tmp
+
+RUN git clone https://github.com/antmicro/kicad-si-simulation-wrapper
+
+WORKDIR /tmp/kicad-si-simulation-wrapper
+
+RUN pip install .
+
 # Set up workspace
 WORKDIR /workspace
 
