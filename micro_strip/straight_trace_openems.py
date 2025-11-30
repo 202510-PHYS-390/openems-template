@@ -19,10 +19,12 @@ from openEMS.physical_constants import *
 # =============================================================================
 #
 # KEY PARAMETERS TO EXPERIMENT WITH:
-# 1. LOAD_RESISTANCE - Change to see reflections (try 0, 50, 1000, 10000 Ω)
-# 2. TRACE_WIDTH - Affects impedance and field distribution
-# 3. FR4_THICKNESS - Changes wave velocity and impedance
-# 4. EXCITATION_FREQ - Try different frequencies
+# 1. EXCITATION_TYPE - Choose from 4 options (see below):
+#    "gaussian", "sinusoidal", "step", "square_pulse"
+# 2. LOAD_RESISTANCE - Change to see reflections (try 0, 50, 1000, 10000 Ω)
+# 3. TRACE_WIDTH - Affects impedance and field distribution
+# 4. FR4_THICKNESS - Changes wave velocity and impedance
+# 5. EXCITATION_FREQ - Try different frequencies
 #
 # For GitHub Codespaces: Keep MAX_TIMESTEPS = 5000 (runs in ~10-15 minutes)
 # On fast laptop: Can increase to 10000-20000 for more detailed visualization
@@ -46,14 +48,21 @@ FR4_EPSILON = 4.6
 COPPER_CONDUCTIVITY = 5.8e7
 
 # Excitation
-EXCITATION_FREQ = 1.0e9  # 1 GHz center
-EXCITATION_BW = 0.01e9   # 10 MHz bandwidth (narrow like working example!)
+EXCITATION_TYPE = "gaussian"   # Options:
+                              #   "gaussian" - Gaussian pulse × sine wave (broadband RF)
+                              #   "sinusoidal" - Continuous sine wave (steady-state RF)
+                              #   "step" - Step envelope × sine wave (turned-on RF)
+                              #   "square_pulse" - Rectangular pulse × sine wave (RF burst)
+
+EXCITATION_FREQ = 1.0e9  # 1 GHz center frequency (for modulated types)
+EXCITATION_BW = 0.01e9   # 10 MHz bandwidth (for gaussian types)
+PULSE_WIDTH = 5.0e-9     # 5 nanoseconds (for square_pulse types)
 
 # Load resistance
-LOAD_RESISTANCE = 50.0   # Try: 0 (short), 50 (roughly matched), 1000 (open)
+LOAD_RESISTANCE = 50.0   # Try: 0 (short), 50 (matched), 1000 (open)
 
 # Simulation settings
-MAX_TIMESTEPS = 20000    # Number of timesteps to run
+MAX_TIMESTEPS = 23000    # Number of timesteps to run
                          # 10000 = ~2 min on fast laptop, ~10-15 min on Codespaces
 
 MIN_DECREMENT = 0.1      # Stop when energy decays to this level (0.1 = -10dB)
@@ -69,7 +78,8 @@ ENABLE_3D_DUMPS = False  # Set to True for full 3D volume visualization
 # SETUP
 # =============================================================================
 
-unit = 0.001  # All dimensions in mm
+# openEMS works in meters, so we define a conversion factor for millimeters
+MM = 0.001
 
 # Simulation folder
 currDir = os.getcwd()
@@ -80,29 +90,60 @@ os.mkdir(Sim_Path)
 
 # Setup FDTD
 CSX = CSXCAD.ContinuousStructure()
-FDTD = openEMS(NrTS=MAX_TIMESTEPS, EndCriteria=MIN_DECREMENT, OverSampling=100)
+FDTD = openEMS(
+    NrTS=MAX_TIMESTEPS,
+    EndCriteria=MIN_DECREMENT,
+    OverSampling=100  # High oversampling for accurate custom pulse shapes
+)
 FDTD.SetCSX(CSX)
 
 # Boundary conditions - PML absorbing
 BC = ["PML_8","PML_8","PML_8","PML_8","PML_8","PML_8"]
 FDTD.SetBoundaryCond(BC)
 
-# Excitation - narrow Gaussian (key difference!)
+# Excitation - setup based on type
 f0 = EXCITATION_FREQ
 fc = EXCITATION_BW
-FDTD.SetGaussExcite(f0, fc)
+
+if EXCITATION_TYPE == "gaussian":
+    # Modulated Gaussian pulse - broadband RF spectrum centered at f0
+    FDTD.SetGaussExcite(f0, fc)
+    excite_str = f"Gaussian (modulated): {f0/1e9:.2f} GHz ± {fc/1e6:.0f} MHz"
+
+elif EXCITATION_TYPE == "sinusoidal":
+    # Continuous sinusoidal excitation at f0
+    FDTD.SetSinusExcite(f0)
+    excite_str = f"Sinusoidal: {f0/1e9:.2f} GHz continuous"
+
+elif EXCITATION_TYPE == "step":
+    # Modulated step - RF carrier that turns on smoothly
+    tau = 1.0/fc  # rise time
+    FDTD.SetCustomExcite(f"(1-exp(-1*(t/{tau})^2))*sin(2*pi*{f0}*t)".encode(), 0, f0)
+    excite_str = f"Step (modulated): {f0/1e9:.2f} GHz turning on"
+
+elif EXCITATION_TYPE == "square_pulse":
+    # Modulated square pulse - RF burst of specified width
+    # Use smooth rectangular window with tanh edges (parser doesn't have heaviside)
+    rise_time = PULSE_WIDTH / 20.0  # 5% rise time
+    k = 10.0 / rise_time  # steepness parameter
+    FDTD.SetCustomExcite(f"(0.5*(1+tanh({k}*t)) - 0.5*(1+tanh({k}*(t-{PULSE_WIDTH}))))*sin(2*pi*{f0}*t)".encode(), 0, f0)
+    excite_str = f"Square pulse (modulated): {PULSE_WIDTH*1e9:.1f} ns at {f0/1e9:.2f} GHz"
+
+else:
+    raise ValueError(f"Unknown EXCITATION_TYPE: {EXCITATION_TYPE}")
 
 print("="*70)
 print("Straight PCB Trace Simulator")
 print("="*70)
 print(f"Trace: {TRACE_LENGTH} x {TRACE_WIDTH} mm")
 print(f"FR4: {FR4_THICKNESS} mm, εr = {FR4_EPSILON}")
-print(f"Excitation: {f0/1e9:.2f} GHz ± {fc/1e6:.0f} MHz")
+print(f"Excitation: {excite_str}")
 print(f"Load: {LOAD_RESISTANCE} Ω")
 print("="*70)
 
 # =============================================================================
 # MATERIALS
+# Priority determines which material is drawn if objects overlap. Higher number = higher priority.
 # =============================================================================
 
 # Ground plane (PEC - perfect conductor)
@@ -119,7 +160,7 @@ fr4.SetMaterialProperty(epsilon=FR4_EPSILON, mue=1)
 fr4.AddBox(
     start=[-BOARD_LENGTH/2, -BOARD_WIDTH/2, 0],
     stop=[BOARD_LENGTH/2, BOARD_WIDTH/2, FR4_THICKNESS],
-    priority=9700
+    priority=9700 # Lower priority than metal, so metal is drawn on top
 )
 
 # Trace (copper)
@@ -127,11 +168,14 @@ trace = CSX.AddMetal('trace')
 trace.AddBox(
     start=[-TRACE_LENGTH/2, -TRACE_WIDTH/2, FR4_THICKNESS],
     stop=[TRACE_LENGTH/2, TRACE_WIDTH/2, FR4_THICKNESS + TRACE_THICKNESS],
-    priority=9900
+    priority=9900 # Highest priority
 )
 
 # =============================================================================
-# MESH (Critical - adaptive like working example!)
+# MESH
+# The mesh defines the grid for the FDTD simulation. A finer mesh gives more
+# accurate results but takes longer to run. We use an adaptive mesh that is
+# fine around the trace (where fields change rapidly) and coarse elsewhere.
 # =============================================================================
 
 mesh_x = np.array([])
@@ -147,17 +191,17 @@ def arangeWithEndpoint(start, stop, step=1, endpoint=True):
         arr = np.concatenate([arr, [stop]])
     return arr
 
-# X-direction: Coarse outside trace, fine along trace
+# X-direction: Fine mesh along the length of the trace
 mesh_x = np.concatenate([mesh_x, arangeWithEndpoint(-BOARD_LENGTH/2-10, -TRACE_LENGTH/2-2, 0.5)])
 mesh_x = np.concatenate([mesh_x, arangeWithEndpoint(-TRACE_LENGTH/2-2, TRACE_LENGTH/2+2, 0.1)])  # Fine!
 mesh_x = np.concatenate([mesh_x, arangeWithEndpoint(TRACE_LENGTH/2+2, BOARD_LENGTH/2+10, 0.5)])
 
-# Y-direction: Coarse outside trace, fine across trace
+# Y-direction: Fine mesh across the width of the trace
 mesh_y = np.concatenate([mesh_y, arangeWithEndpoint(-BOARD_WIDTH/2-10, -TRACE_WIDTH/2-2, 0.5)])
 mesh_y = np.concatenate([mesh_y, arangeWithEndpoint(-TRACE_WIDTH/2-2, TRACE_WIDTH/2+2, 0.1)])  # Fine!
 mesh_y = np.concatenate([mesh_y, arangeWithEndpoint(TRACE_WIDTH/2+2, BOARD_WIDTH/2+10, 0.5)])
 
-# Z-direction: Coarse in air, fine through conductors and FR4
+# Z-direction: Fine mesh through the conductors and substrate
 mesh_z = np.concatenate([mesh_z, arangeWithEndpoint(-10, -GROUND_THICKNESS-0.1, 0.5)])
 # Multiple lines through ground plane
 mesh_z = np.concatenate([mesh_z, np.linspace(-GROUND_THICKNESS, 0, 3)])
@@ -174,7 +218,7 @@ mesh_y = np.unique(mesh_y)
 mesh_z = np.unique(mesh_z)
 
 openEMS_grid = CSX.GetGrid()
-openEMS_grid.SetDeltaUnit(unit)
+openEMS_grid.SetDeltaUnit(MM)
 openEMS_grid.AddLine('x', mesh_x)
 openEMS_grid.AddLine('y', mesh_y)
 openEMS_grid.AddLine('z', mesh_z)
@@ -197,7 +241,7 @@ port1 = FDTD.AddLumpedPort(
     stop=port1_stop,
     p_dir='z',
     priority=10000,
-    excite=1000.0  # 1000V excitation like working example!
+    excite=1000.0  # Excitation field strength in V/m. For a ~mm port gap, this gives a voltage of a few Volts.
 )
 
 # Port 2: Load (right end)
