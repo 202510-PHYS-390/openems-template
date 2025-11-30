@@ -20,6 +20,7 @@ tapered_working_sim/
 simple_resistor_sim/
 no_pml_test/
 mesh_coords_test/
+output_files/
 
 # ElmerFEM specific outputs
 **/*.msh
